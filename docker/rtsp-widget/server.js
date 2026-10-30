@@ -38,7 +38,12 @@ const coreId = value => typeof value === 'string' && /^[a-zA-Z0-9_.:-]{1,180}$/.
 
 export function createApp({ password, databasePath = '/data/widgets.json', idleMs = 90000, managerFactory,
   coreApiUrl = '', coreUsername = 'web-configurator', corePassword = '', coreFetch = fetch,
-  viewToken = '' } = {}) {
+  viewToken = '', editorRedirect = '' } = {}) {
+  if (editorRedirect) {
+    const target = new URL(editorRedirect);
+    if (!['http:', 'https:'].includes(target.protocol) || target.username || target.password)
+      throw new Error('RTSP_WIDGET_EDITOR_REDIRECT must be an HTTP(S) URL without credentials');
+  }
   if (viewToken && viewToken.length < 16) throw new Error('RTSP_WIDGET_VIEW_TOKEN must be at least 16 characters');
   if (!password || password.length < 12) throw new Error('RTSP_WIDGET_PASSWORD must be at least 12 characters');
   mkdirSync(dirname(databasePath), { recursive: true });
@@ -176,6 +181,13 @@ export function createApp({ password, databasePath = '/data/widgets.json', idleM
     try { url = new URL(req.url, 'http://localhost'); }
     catch { json(res, 400, { error: 'Invalid URL' }); return; }
     if (url.pathname === '/health') { json(res, 200, { ok: true }); return; }
+    // The integrated Web Configurator replaces the independent RTSP editor.
+    // Media and API routes stay intact for the native Remote UI and browser preview.
+    if (editorRedirect && req.method === 'GET' && (url.pathname === '/' || url.pathname === '/index.html')) {
+      res.writeHead(302, { Location: editorRedirect, 'Cache-Control': 'no-store' });
+      res.end();
+      return;
+    }
     const path = url.pathname;
     const viewRequest = !tokenValid(req) && viewerAllowed(req, path, url);
     if (!viewRequest && !tokenValid(req)) {
@@ -322,7 +334,8 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
     coreApiUrl: process.env.CORE_API_URL || '',
     coreUsername: process.env.CORE_API_USERNAME || 'web-configurator',
     corePassword: process.env.CORE_API_PASSWORD || '',
-    viewToken: process.env.RTSP_WIDGET_VIEW_TOKEN || ''
+    viewToken: process.env.RTSP_WIDGET_VIEW_TOKEN || '',
+    editorRedirect: process.env.RTSP_WIDGET_EDITOR_REDIRECT || ''
   });
   const port = Number(process.env.RTSP_WIDGET_PORT || 8091);
   server.listen(port, '0.0.0.0', () => console.log('RTSP widget service listening on :' + port));
