@@ -37,7 +37,7 @@ test('stock Configurator HTML gets an injected extension script', async () => {
   assert.equal(response.status, 200);
   const html = await response.text();
   assert.match(html, /\/rtsp-addon\/editor\.js/);
-  assert.match(html, /\/rtsp-addon\/editor\.css/);
+  assert.doesNotMatch(html, /rel="stylesheet" href="\/rtsp-addon\/editor\.css/);
   assert.match(html, /Hello there/);
 });
 test('unmodified Core APIs and static injected UI are served', async () => {
