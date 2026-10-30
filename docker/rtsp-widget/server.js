@@ -37,7 +37,9 @@ const displayName = value => {
 const coreId = value => typeof value === 'string' && /^[a-zA-Z0-9_.:-]{1,180}$/.test(value);
 
 export function createApp({ password, databasePath = '/data/widgets.json', idleMs = 90000, managerFactory,
-  coreApiUrl = '', coreUsername = 'web-configurator', corePassword = '', coreFetch = fetch } = {}) {
+  coreApiUrl = '', coreUsername = 'web-configurator', corePassword = '', coreFetch = fetch,
+  viewToken = '' } = {}) {
+  if (viewToken && viewToken.length < 16) throw new Error('RTSP_WIDGET_VIEW_TOKEN must be at least 16 characters');
   if (!password || password.length < 12) throw new Error('RTSP_WIDGET_PASSWORD must be at least 12 characters');
   mkdirSync(dirname(databasePath), { recursive: true });
   let widgets = [];
@@ -101,6 +103,19 @@ export function createApp({ password, databasePath = '/data/widgets.json', idleM
     const expected = Buffer.from(password);
     return supplied.length === expected.length && timingSafeEqual(supplied, expected);
   };
+  const equalSecret = (given, expected) => {
+    if (!expected || !given || typeof given !== 'string') return false;
+    const left = Buffer.from(given), right = Buffer.from(expected);
+    return left.length === right.length && timingSafeEqual(left, right);
+  };
+  const viewerAllowed = (req, path, url) => {
+    if (!viewToken || req.method !== 'GET') return false;
+    if (/^\/api\/activities\/[^/]+\/pages\/[^/]+\/widgets$/.test(path))
+      return equalSecret((req.headers.authorization || '').replace(/^Bearer /, ''), viewToken);
+    if (/^\/(?:hls|snapshot|mjpeg)\//.test(path))
+      return equalSecret(url.searchParams.get('view_token'), viewToken);
+    return false;
+  };
   const json = (res, status, obj) => {
     res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
     res.end(JSON.stringify(obj));
@@ -160,13 +175,18 @@ export function createApp({ password, databasePath = '/data/widgets.json', idleM
     try { url = new URL(req.url, 'http://localhost'); }
     catch { json(res, 400, { error: 'Invalid URL' }); return; }
     if (url.pathname === '/health') { json(res, 200, { ok: true }); return; }
-    if (!tokenValid(req)) {
+    const path = url.pathname;
+    const viewRequest = !tokenValid(req) && viewerAllowed(req, path, url);
+    if (!viewRequest && !tokenValid(req)) {
       res.setHeader('WWW-Authenticate', 'Basic realm="UC RTSP Widgets"');
       json(res, 401, { error: 'Authentication required' });
       return;
     }
-    const path = url.pathname;
     try {
+      // Viewer tokens are read-only and cannot access the admin editor or API.
+      if (viewRequest && !/^\/api\/activities\/[^/]+\/pages\/[^/]+\/widgets$/.test(path)
+          && !/^\/(?:hls|snapshot|mjpeg)\//.test(path))
+        return json(res, 403, { error: 'Viewer cannot access this endpoint' });
       if (req.method === 'GET' && (path === '/' || path === '/index.html'))
         return sendFile(res, join(here, 'public/index.html'), 'text/html; charset=utf-8');
       if (req.method === 'GET' && path === '/app.js')
@@ -252,7 +272,26 @@ export function createApp({ password, databasePath = '/data/widgets.json', idleM
         if (!byId(id)) return json(res, 404, { error: 'Widget not found' });
         const file = filename === 'index.m3u8' ? await manager.playlist(id) : manager.segment(id, filename);
         if (!file) return json(res, filename === 'index.m3u8' ? 503 : 404, { error: 'Stream not ready' });
+        if (viewRequest && filename.endsWith('.m3u8')) {
+          // Qt's native multimedia backend does not necessarily propagate a playlist URL's
+          // query string to segment requests, so embed the read-only token in each segment URI.
+          const suffix = '?view_token=' + encodeURIComponent(viewToken);
+          const playlist = readFileSync(file, 'utf8').replace(/^(segment-[0-9]+\.ts)(\r?)$/gm, '$1' + suffix + '$2');
+          res.writeHead(200, { 'Content-Type': 'application/vnd.apple.mpegurl', 'Cache-Control': 'no-store' });
+          res.end(playlist);
+          return;
+        }
         return sendFile(res, file, filename.endsWith('.m3u8') ? 'application/vnd.apple.mpegurl' : 'video/mp2t');
+      }
+      const snapshot = path.match(/^\/snapshot\/([a-z0-9-]+)\.jpg$/);
+      if (req.method === 'GET' && snapshot) {
+        const id = snapshot[1];
+        if (!byId(id)) return json(res, 404, { error: 'Widget not found' });
+        const frame = manager.snapshot(id);
+        if (!frame) return json(res, 503, { error: 'Camera frame not ready' });
+        res.writeHead(200, { 'Content-Type': 'image/jpeg', 'Cache-Control': 'no-store, max-age=0' });
+        res.end(frame);
+        return;
       }
       const mjpeg = path.match(/^\/mjpeg\/([a-z0-9-]+)$/);
       if (req.method === 'GET' && mjpeg) {
@@ -281,7 +320,8 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
     idleMs: Number(process.env.RTSP_WIDGET_IDLE_MS || 90000),
     coreApiUrl: process.env.CORE_API_URL || '',
     coreUsername: process.env.CORE_API_USERNAME || 'web-configurator',
-    corePassword: process.env.CORE_API_PASSWORD || ''
+    corePassword: process.env.CORE_API_PASSWORD || '',
+    viewToken: process.env.RTSP_WIDGET_VIEW_TOKEN || ''
   });
   const port = Number(process.env.RTSP_WIDGET_PORT || 8091);
   server.listen(port, '0.0.0.0', () => console.log('RTSP widget service listening on :' + port));
