@@ -172,6 +172,15 @@ export function createApp({ password, databasePath = '/data/widgets.json', idleM
           return json(res, 200, manager.status(id));
         }
       }
+      const view = path.match(/^\/view\/([^/]+)\/([^/]+)$/);
+      if (req.method === 'GET' && view) {
+        const activity = decodeURIComponent(view[1]);
+        const page = decodeURIComponent(view[2]);
+        const config = JSON.stringify({ activity, page }).replaceAll('<', '\\u003c');
+        res.setHeader('Content-Type', 'text/html; charset=utf-8');
+        res.end('<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/style.css"></head><body class="activity-page"><div id="activity-view"></div><script>window.ACTIVITY=' + config + '</script><script src="/app.js"></script></body></html>');
+        return;
+      }
       const embed = path.match(/^\/embed\/([a-z0-9-]+)$/);
       if (req.method === 'GET' && embed) {
         const widget = byId(embed[1]);
