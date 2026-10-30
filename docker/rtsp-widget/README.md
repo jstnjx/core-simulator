@@ -11,12 +11,14 @@ Run from the docker directory:
 
 Open http://localhost:8091/ and authenticate as **admin** with your RTSP_WIDGET_PASSWORD.
 
-Add an RTSP URI (for example rtsp://camera-user:camera-pass@192.168.1.20:554/live), specify the activity entity ID and activity page ID, choose grid position and size, and save. Each card displays the stream and links to an embeddable player and a 480×850 activity-grid preview, with every configured feed rendered at its assigned cell position.
+Add an RTSP URI (for example rtsp://camera-user:camera-pass@192.168.1.20:554/live), select an activity and then its page from the Core-powered dropdowns, choose grid position and size, and save. The selected activity page automatically supplies its grid dimensions. Refresh activities to reload the list, or use **Enter IDs manually** when Core is unavailable. Each card displays the stream and links to an embeddable player and a 480×850 activity-grid preview, with every configured feed rendered at its assigned cell position.
 
 ## Endpoints
 
 | Method / Path | Behavior |
 | --- | --- |
+| GET /api/core/activities | List Core activities (names and IDs) for the picker |
+| GET /api/core/activities/{id}/pages | List activity UI pages including grid dimensions for the picker |
 | GET /api/widgets | List widgets, source hosts, statuses and placements; camera secrets are redacted |
 | POST /api/widgets | Create widget from JSON |
 | GET /api/widgets/{id} | Get a single widget and status |
@@ -55,3 +57,7 @@ The stock Web Configurator and physical Remote UI therefore do **not** automatic
 Use HTTPS when accessing this through a public reverse proxy, and restrict access to trusted users. Browsers block embedding an HTTP stream inside an HTTPS page. Camera URLs can be exposed to local process-list viewers (FFmpeg command arguments), so do not grant untrusted shell or Docker access. The service refuses to start unless RTSP_WIDGET_PASSWORD is at least 12 characters.
 
 Run API tests from docker/rtsp-widget using npm test (a live camera is not required). For stream issues, inspect docker compose logs -f rtsp-widget and test the RTSP URL in another player.
+
+## Core activity picker
+
+`docker-compose-rtsp.yml` connects the sidecar to `http://core-simulator:8080` using the simulator's Web Configurator account. It defaults to the simulator's standard `web-configurator` / `1234` credentials; if you changed the PIN, set `CORE_API_PASSWORD=your-new-pin` in `docker/.env`. `CORE_API_USERNAME` and `CORE_API_URL` may be overridden if required. All requests go through the authenticated sidecar; browser responses do not contain Core credentials. Core must be running and reachable for automatic discovery. The manual ID option still works without Core.

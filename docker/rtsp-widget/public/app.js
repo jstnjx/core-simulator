@@ -68,9 +68,88 @@ else if (window.ACTIVITY && $('activity-view')) {
 }
 else if ($('editor')) {
   let records = [];
+  let activityRows = [];
+  let pageRows = [];
+  let pageGeneration = 0;
+  const status = text => { $('core-status').textContent = text; };
+  const fillSelect = (id, rows, prompt) => {
+    const control = $(id);
+    control.replaceChildren(new Option(prompt, ''));
+    for (const row of rows) control.add(new Option(row.name, row.id));
+  };
+  const useManual = (enabled, activityId = '', pageId = '') => {
+    $('manual-ids').checked = enabled;
+    $('manual-controls').hidden = !enabled;
+    for (const id of ['activity','page']) {
+      $(id).disabled = enabled || (id === 'page' && !$('activity').value);
+      $(id).required = !enabled;
+    }
+    for (const id of ['manual-activity','manual-page']) $(id).required = enabled;
+    if (enabled) {
+      $('manual-activity').value = activityId || $('activity').value;
+      $('manual-page').value = pageId || $('page').value;
+    }
+  };
+  const applyPageGrid = () => {
+    const row = pageRows.find(p => p.id === $('page').value);
+    if (row?.grid) {
+      $('gw').value = row.grid.width;
+      $('gh').value = row.grid.height;
+    }
+    gridPreview();
+  };
+  async function loadPages(activityId, preferredPage = '') {
+    const currentGeneration = ++pageGeneration;
+    pageRows = [];
+    fillSelect('page', [], activityId ? 'Loading pages…' : 'Select an activity');
+    $('page').disabled = true;
+    if (!activityId || $('manual-ids').checked) return;
+    try {
+      const pages = await request('/api/core/activities/' + encodeURIComponent(activityId) + '/pages');
+      if (currentGeneration !== pageGeneration || $('manual-ids').checked) return;
+      pageRows = pages;
+      fillSelect('page', pages, 'Select a page');
+      $('page').disabled = false;
+      if (preferredPage && pages.some(p => p.id === preferredPage)) $('page').value = preferredPage;
+      else if (pages.length === 1 && !preferredPage) $('page').value = pages[0].id;
+      else if (preferredPage) {
+        useManual(true, activityId, preferredPage);
+        status('Saved page not found in Core; using manual IDs.');
+        return;
+      }
+      status(pages.length ? 'Activity pages loaded from Core.' : 'No pages found for this activity.');
+      applyPageGrid();
+    } catch(e) {
+      if (currentGeneration !== pageGeneration) return;
+      useManual(true, activityId, preferredPage);
+      status('Cannot load pages: ' + e.message + '. Enter IDs manually.');
+    }
+  }
+  async function loadActivities(preferredActivity = '', preferredPage = '') {
+    fillSelect('activity', [], 'Loading activities…');
+    if (!$('manual-ids').checked) $('activity').disabled = true;
+    try {
+      activityRows = await request('/api/core/activities');
+      fillSelect('activity', activityRows, 'Select an activity');
+      if (preferredActivity && activityRows.some(a => a.id === preferredActivity)) $('activity').value = preferredActivity;
+      else if (activityRows.length === 1 && !preferredActivity) $('activity').value = activityRows[0].id;
+      else if (preferredActivity) {
+        useManual(true, preferredActivity, preferredPage);
+        status('Saved activity not found in Core; using manual IDs.');
+        return;
+      }
+      $('activity').disabled = $('manual-ids').checked;
+      status(activityRows.length ? 'Choose an activity and its page.' : 'Core has no activities. Create an activity or enter IDs manually.');
+      if ($('activity').value) await loadPages($('activity').value, preferredPage);
+      else { pageRows = []; fillSelect('page', [], 'Select an activity'); }
+    } catch(e) {
+      useManual(true, preferredActivity, preferredPage);
+      status('Cannot connect to Core: ' + e.message + '. Enter IDs manually, or check CORE_API_PASSWORD.');
+    }
+  }
   function formData() {
     const d = {
-      name: $('name').value, activity_id: $('activity').value, page_id: $('page').value,
+      name: $('name').value, activity_id: $('manual-ids').checked ? $('manual-activity').value : $('activity').value, page_id: $('manual-ids').checked ? $('manual-page').value : $('page').value,
       location: { x: Number($('x').value), y: Number($('y').value) },
       size: { width: Number($('w').value), height: Number($('h').value) },
       grid: { width: Number($('gw').value), height: Number($('gh').value) },
@@ -101,11 +180,15 @@ else if ($('editor')) {
   }
   function reset() {
     $('editor').reset(); $('widget-id').value = ''; $('editor-title').textContent = 'New camera widget';
-    $('url').required = true; $('message').textContent = ''; gridPreview();
+    $('url').required = true; $('message').textContent = '';
+    useManual(false);
+    if (activityRows.length === 1) { $('activity').value = activityRows[0].id; loadPages($('activity').value); }
+    else { fillSelect('page', [], 'Select an activity'); $('page').disabled = true; }
+    gridPreview();
   }
-  function edit(id) {
+  async function edit(id) {
     const data = records.find(x => x.id === id); if (!data) return;
-    const map = { name:'name', activity_id:'activity', page_id:'page', width:'pixels', fps:'fps', mode:'mode' };
+    const map = { name:'name', width:'pixels', fps:'fps', mode:'mode' };
     for(const [field, elementId] of Object.entries(map)) $(elementId).value = data[field];
     $('x').value=data.location.x; $('y').value=data.location.y;
     $('w').value=data.size.width; $('h').value=data.size.height;
@@ -113,6 +196,8 @@ else if ($('editor')) {
     $('widget-id').value=data.id; $('enabled').checked=data.enabled;
     $('url').value=''; $('url').required=false;
     $('editor-title').textContent='Edit ' + data.name;
+    useManual(false);
+    await loadActivities(data.activity_id, data.page_id);
     gridPreview(); window.scrollTo({top:0,behavior:'smooth'});
   }
   async function refresh() {
@@ -131,7 +216,7 @@ else if ($('editor')) {
         '<a target="_blank" rel="noopener" href="/view/' + encodeURIComponent(w.activity_id) + '/' + encodeURIComponent(w.page_id) + '">Preview activity grid</a>';
       card.querySelectorAll('button').forEach(btn => btn.addEventListener('click', async () => {
         const action = btn.dataset.action;
-        if (action === 'edit') { edit(w.id); return; }
+        if (action === 'edit') { edit(w.id).catch(e => $('message').textContent=e.message); return; }
         if (action === 'delete' && !confirm('Delete ' + w.name + '?')) return;
         try {
           const suffix = ['stop','restart'].includes(action) ? '/' + action : '';
@@ -142,6 +227,18 @@ else if ($('editor')) {
       box.append(card);
     }
   }
+  $('activity').addEventListener('change', () => loadPages($('activity').value));
+  $('page').addEventListener('change', applyPageGrid);
+  $('manual-ids').addEventListener('change', () => {
+    const enabled = $('manual-ids').checked;
+    useManual(enabled);
+    if (!enabled) loadActivities($('manual-activity').value, $('manual-page').value);
+    gridPreview();
+  });
+  $('reload-activities').addEventListener('click', () => {
+    useManual(false);
+    loadActivities($('activity').value, $('page').value);
+  });
   $('editor').addEventListener('input', gridPreview);
   $('editor').addEventListener('submit', async ev => {
     ev.preventDefault(); const id=$('widget-id').value;
@@ -154,5 +251,7 @@ else if ($('editor')) {
   });
   $('clear').addEventListener('click',reset);
   $('refresh').addEventListener('click',()=>refresh().catch(e=>$('message').textContent=e.message));
-  reset(); refresh().catch(e=>$('message').textContent=e.message);
+  reset();
+  loadActivities();
+  refresh().catch(e=>$('message').textContent=e.message);
 }

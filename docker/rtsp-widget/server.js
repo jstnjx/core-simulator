@@ -29,7 +29,15 @@ const visible = widget => {
   return { ...rest, source: parsed.protocol + '//' + parsed.host };
 };
 
-export function createApp({ password, databasePath = '/data/widgets.json', idleMs = 90000, managerFactory } = {}) {
+const displayName = value => {
+  if (typeof value === 'string' && value.trim()) return value.trim();
+  if (value && typeof value === 'object') return value.en || value.de || Object.values(value).find(v => typeof v === 'string' && v.trim()) || '';
+  return '';
+};
+const coreId = value => typeof value === 'string' && /^[a-zA-Z0-9_.:-]{1,180}$/.test(value);
+
+export function createApp({ password, databasePath = '/data/widgets.json', idleMs = 90000, managerFactory,
+  coreApiUrl = '', coreUsername = 'web-configurator', corePassword = '', coreFetch = fetch } = {}) {
   if (!password || password.length < 12) throw new Error('RTSP_WIDGET_PASSWORD must be at least 12 characters');
   mkdirSync(dirname(databasePath), { recursive: true });
   let widgets = [];
@@ -39,6 +47,43 @@ export function createApp({ password, databasePath = '/data/widgets.json', idleM
     widgets = data;
   }
   const byId = id => widgets.find(w => w.id === id);
+  // Resolve activity/page metadata via Core on the server. Never expose its credentials to browsers.
+  const coreRequest = async path => {
+    if (!coreApiUrl) throw new Error('Core API not configured');
+    const base = new URL(coreApiUrl);
+    if (!['http:', 'https:'].includes(base.protocol)) throw new Error('Core API URL must use HTTP or HTTPS');
+    const endpoint = new URL('/api' + path, base);
+    const response = await coreFetch(endpoint, {
+      headers: {
+        Authorization: 'Basic ' + Buffer.from(coreUsername + ':' + corePassword).toString('base64'),
+        Accept: 'application/json'
+      },
+      redirect: 'error', signal: AbortSignal.timeout(7000)
+    });
+    if (response.status === 401 || response.status === 403) throw new Error('Core authentication failed: check CORE_API_PASSWORD');
+    if (!response.ok) throw new Error('Core API returned HTTP ' + response.status);
+    return { data: await response.json(), count: Number(response.headers.get('Pagination-Count')) };
+  };
+  const listCoreActivities = async () => {
+    const all = [];
+    for (let page = 1; page <= 20; page++) {
+      const { data, count } = await coreRequest('/activities?limit=100&page=' + page);
+      if (!Array.isArray(data)) throw new Error('Unexpected Core activities response');
+      all.push(...data);
+      if (data.length < 100 || (count > 0 && all.length >= count)) break;
+    }
+    return all.filter(a => coreId(a.entity_id)).map(a => ({
+      id: a.entity_id, name: displayName(a.name) || a.entity_id
+    }));
+  };
+  const listCorePages = async activityId => {
+    const { data } = await coreRequest('/activities/' + encodeURIComponent(activityId) + '/ui/pages');
+    if (!Array.isArray(data)) throw new Error('Unexpected Core activity pages response');
+    return data.filter(p => coreId(p.page_id)).map((p, index) => ({
+      id: p.page_id, name: displayName(p.name) || 'Page ' + (index + 1),
+      grid: p.grid || { width: 4, height: 6 }
+    }));
+  };
   const manager = managerFactory ? managerFactory(byId) : new StreamManager({ getWidget: byId, idleMs });
   const persist = () => {
     const temp = databasePath + '.' + process.pid + '.tmp';
@@ -130,6 +175,17 @@ export function createApp({ password, databasePath = '/data/widgets.json', idleM
         return sendFile(res, join(here, 'public/style.css'), 'text/css; charset=utf-8');
       if (req.method === 'GET' && path === '/hls.min.js')
         return sendFile(res, join(here, 'node_modules/hls.js/dist/hls.min.js'), 'application/javascript; charset=utf-8');
+      if (req.method === 'GET' && path === '/api/core/activities') {
+        try { return json(res, 200, await listCoreActivities()); }
+        catch (e) { return json(res, 502, { error: e.message.startsWith('Core authentication') || e.message === 'Core API not configured' ? e.message : 'Cannot load Core activities: ' + e.message }); }
+      }
+      const corePages = path.match(/^\/api\/core\/activities\/([^/]+)\/pages$/);
+      if (req.method === 'GET' && corePages) {
+        const activityId = decodeURIComponent(corePages[1]);
+        if (!coreId(activityId)) return json(res, 400, { error: 'Invalid activity ID' });
+        try { return json(res, 200, await listCorePages(activityId)); }
+        catch (e) { return json(res, 502, { error: e.message.startsWith('Core authentication') || e.message === 'Core API not configured' ? e.message : 'Cannot load activity pages: ' + e.message }); }
+      }
       if (req.method === 'GET' && path === '/api/widgets')
         return json(res, 200, widgets.map(w => ({ ...visible(w), status: manager.status(w.id) })));
 
@@ -222,7 +278,10 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   const { server, manager } = createApp({
     password: process.env.RTSP_WIDGET_PASSWORD,
     databasePath: process.env.RTSP_WIDGET_DB || '/data/widgets.json',
-    idleMs: Number(process.env.RTSP_WIDGET_IDLE_MS || 90000)
+    idleMs: Number(process.env.RTSP_WIDGET_IDLE_MS || 90000),
+    coreApiUrl: process.env.CORE_API_URL || '',
+    coreUsername: process.env.CORE_API_USERNAME || 'web-configurator',
+    corePassword: process.env.CORE_API_PASSWORD || ''
   });
   const port = Number(process.env.RTSP_WIDGET_PORT || 8091);
   server.listen(port, '0.0.0.0', () => console.log('RTSP widget service listening on :' + port));
