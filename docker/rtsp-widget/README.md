@@ -11,7 +11,7 @@ Run from the docker directory:
 
 Open http://localhost:8091/ and authenticate as **admin** with your RTSP_WIDGET_PASSWORD.
 
-Add an RTSP URI (for example rtsp://camera-user:camera-pass@192.168.1.20:554/live), specify the activity entity ID and activity page ID, choose grid position and size, and save. Each card displays the stream and links to an embeddable player.
+Add an RTSP URI (for example rtsp://camera-user:camera-pass@192.168.1.20:554/live), specify the activity entity ID and activity page ID, choose grid position and size, and save. Each card displays the stream and links to an embeddable player and a 480×850 activity-grid preview, with every configured feed rendered at its assigned cell position.
 
 ## Endpoints
 
@@ -26,6 +26,7 @@ Add an RTSP URI (for example rtsp://camera-user:camera-pass@192.168.1.20:554/liv
 | POST /api/widgets/{id}/stop | Stop shared HLS session |
 | GET /api/activities/{activityId}/pages/{pageId}/widgets | List sidecar widgets assigned to an activity page |
 | GET /embed/{id} | Embeddable HLS/MJPEG browser player |
+| GET /view/{activityId}/{pageId} | Simulator activity-grid playback preview with positioned video tiles |
 | GET /hls/{id}/index.m3u8 | H.264 HLS live playlist, generated on demand |
 | GET /mjpeg/{id} | Low latency JPEG multipart stream |
 | GET /health | Unauthenticated health probe |
