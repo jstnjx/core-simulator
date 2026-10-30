@@ -45,6 +45,27 @@ function playWidget(config) {
 }
 
 if (window.WIDGET) playWidget(window.WIDGET);
+else if (window.ACTIVITY && $('activity-view')) {
+  const { activity, page } = window.ACTIVITY;
+  fetch('/api/activities/' + encodeURIComponent(activity) + '/pages/' + encodeURIComponent(page) + '/widgets')
+    .then(response => { if (!response.ok) throw Error('Failed to load widgets'); return response.json(); })
+    .then(widgets => {
+      const grid = $('activity-view');
+      const layout = widgets.length ? widgets[0].grid : { width: 4, height: 6 };
+      grid.style.gridTemplateColumns = 'repeat(' + layout.width + ',1fr)';
+      grid.style.gridTemplateRows = 'repeat(' + layout.height + ',1fr)';
+      for (const w of widgets) {
+        const tile = document.createElement('iframe');
+        tile.title = w.name;
+        tile.src = '/embed/' + w.id;
+        tile.style.gridColumn = (w.location.x + 1) + '/span ' + w.size.width;
+        tile.style.gridRow = (w.location.y + 1) + '/span ' + w.size.height;
+        tile.setAttribute('allow', 'autoplay');
+        grid.append(tile);
+      }
+      if (!widgets.length) grid.textContent = 'No RTSP widgets assigned to this activity page.';
+    }).catch(error => { $('activity-view').textContent = error.message; });
+}
 else if ($('editor')) {
   let records = [];
   function formData() {
@@ -106,7 +127,8 @@ else if ($('editor')) {
         '<br>(' + w.location.x + ',' + w.location.y + '), ' + w.size.width + '×' + w.size.height + ', ' + w.fps + ' fps</div>' +
         '<iframe loading="lazy" title="' + escapeHtml(w.name) + '" src="/embed/' + w.id + '"></iframe>' +
         '<div class="actions"><button data-action="edit">Edit</button><button data-action="restart" class="secondary">Restart</button><button data-action="stop" class="secondary">Stop</button><button data-action="delete" class="secondary">Delete</button></div>' +
-        '<a target="_blank" rel="noopener" href="/embed/' + w.id + '">Open player</a>';
+        '<a target="_blank" rel="noopener" href="/embed/' + w.id + '">Open player</a> · ' +
+        '<a target="_blank" rel="noopener" href="/view/' + encodeURIComponent(w.activity_id) + '/' + encodeURIComponent(w.page_id) + '">Preview activity grid</a>';
       card.querySelectorAll('button').forEach(btn => btn.addEventListener('click', async () => {
         const action = btn.dataset.action;
         if (action === 'edit') { edit(w.id); return; }
