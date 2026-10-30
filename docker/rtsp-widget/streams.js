@@ -36,8 +36,8 @@ export class StreamManager {
       '-i', config.url, '-map', '0:v:0', '-an',
       '-vf', 'fps=' + config.fps + ',scale=' + config.width + ':-2:flags=fast_bilinear',
       '-c:v', 'libx264', '-preset', 'ultrafast', '-tune', 'zerolatency',
-      '-pix_fmt', 'yuv420p', '-g', String(config.fps * 2), '-sc_threshold', '0',
-      '-f', 'hls', '-hls_time', '2', '-hls_list_size', '5',
+      '-pix_fmt', 'yuv420p', '-g', String(config.fps), '-sc_threshold', '0',
+      '-f', 'hls', '-hls_time', '1', '-hls_list_size', '6',
       '-hls_start_number_source', 'epoch',
       '-hls_flags', 'delete_segments+independent_segments+omit_endlist',
       '-hls_segment_filename', join(directory, 'segment-%d.ts'),
@@ -118,7 +118,7 @@ export class StreamManager {
         '-hide_banner', '-loglevel', 'error', '-nostdin',
         '-rtsp_transport', 'tcp', '-timeout', '5000000', '-i', cfg.url,
         '-map', '0:v:0', '-an',
-        '-vf', 'fps=' + Math.min(cfg.fps, 6) + ',scale=' + cfg.width + ':-2',
+        '-vf', 'fps=' + Math.min(cfg.fps, 15) + ',scale=' + cfg.width + ':-2',
         '-f', 'image2pipe', '-vcodec', 'mjpeg', '-q:v', '7', 'pipe:1'
       ];
       const process = this.spawnProcess(this.ffmpeg, args, { stdio: ['ignore', 'pipe', 'ignore'] });
@@ -145,6 +145,21 @@ export class StreamManager {
     }
     session.lastSeen = Date.now();
     return session.frame;
+  }
+
+  // A first JPEG takes time to appear while FFmpeg connects to an RTSP camera.
+  // Hold the first request rather than returning several 503 errors per second.
+  // All later requests return the latest completed JPEG immediately.
+  async snapshotReady(id, timeoutMs = 8500) {
+    let frame = this.snapshot(id);
+    const deadline = Date.now() + timeoutMs;
+    while (!frame && Date.now() < deadline) {
+      const session = this.snapshots.get(id);
+      if (!session || session.exited) return null;
+      await sleep(90);
+      frame = this.snapshot(id);
+    }
+    return frame;
   }
 
   stopSnapshot(id) {
