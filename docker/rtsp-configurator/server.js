@@ -85,7 +85,7 @@ export function createServer({ coreUrl = 'http://core-simulator:8080', rtspUrl =
           return;
         }
         let html = content.toString('utf8');
-        const assets = '<link rel="stylesheet" href="/rtsp-addon/editor.css"><script defer src="/rtsp-addon/editor.js"></script>';
+        const assets = '<script defer src="/rtsp-addon/editor.js"></script>'; // CSS loads only inside Shadow DOM
         if (html.match(/<\/head\s*>/i)) html = html.replace(/<\/head\s*>/i, assets + '</head>');
         else if (html.match(/<body(?:\s|>)/i)) html = html.replace(/<body(?:\s|>)/i, assets + '$&');
         else { json(res, 502, { error: 'Cannot inject Configurator resources into HTML' }); return; }
@@ -161,7 +161,7 @@ export function createServer({ coreUrl = 'http://core-simulator:8080', rtspUrl =
       const headers = [];
       for (let i = 0; i < req.rawHeaders.length; i += 2) {
         const key = req.rawHeaders[i];
-        if (key.toLowerCase() === 'host') headers.push(key + ': ' + core.host);
+        if (key.toLowerCase() === 'host') headers.push(key + ': ' + (req.headers.host || core.host));
         else headers.push(key + ': ' + req.rawHeaders[i + 1]);
       }
       upstream.write(req.method + ' ' + req.url + ' HTTP/1.1\r\n' + headers.join('\r\n') + '\r\n\r\n');
