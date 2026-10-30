@@ -1,0 +1,21 @@
+# Optional stock Web Configurator extension (keep Core on localhost:8080).
+# Compose with docker-compose.yml and docker-compose-rtsp.yml.
+services:
+  rtsp-configurator:
+    build:
+      context: ./rtsp-configurator
+    container_name: core-simulator-rtsp-configurator
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${RTSP_CONFIGURATOR_PORT:-8081}:8081"
+    environment:
+      RTSP_CONFIGURATOR_PORT: 8081
+      RTSP_WIDGET_PASSWORD: ${RTSP_WIDGET_PASSWORD:?Set RTSP_WIDGET_PASSWORD in docker/.env}
+      CONFIGURATOR_CORE_URL: http://core-simulator:8080
+      CONFIGURATOR_RTSP_URL: http://rtsp-widget:8091
+    depends_on:
+      - core-simulator
+      - rtsp-widget
+  rtsp-widget:
+    environment:
+      RTSP_WIDGET_EDITOR_REDIRECT: http://localhost:${RTSP_CONFIGURATOR_PORT:-8081}/configurator
