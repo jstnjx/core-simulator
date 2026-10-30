@@ -292,3 +292,14 @@ macOS example:
 ```
 UC_TOKEN_PATH=/Users/projects/core-simulator/docker/ui-env/ws-token Remote\ UI.app/Contents/MacOS/Remote\ UI
 ```
+
+## Optional RTSP stream widget sidecar
+
+For HLS/MJPEG video widgets in a browser, run the optional `docker-compose-rtsp.yml` overlay:
+
+```sh
+export RTSP_WIDGET_PASSWORD='replace-with-a-long-unique-password'
+docker compose -f docker-compose.yml -f docker-compose-rtsp.yml up -d --build
+```
+
+Open http://localhost:8091/ and sign in as `admin`. Camera RTSP sources and activity/page placement are configured in this separate browser editor. The streaming sidecar does not change Core's supported activity-widget item types, and it does not modify the bundled Web Configurator. See [RTSP widget documentation](rtsp-widget/README.md).
