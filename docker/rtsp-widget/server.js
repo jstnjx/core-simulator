@@ -113,7 +113,8 @@ export function createApp({ password, databasePath = '/data/widgets.json', idleM
     if (/^\/api\/activities\/[^/]+\/pages\/[^/]+\/widgets$/.test(path))
       return equalSecret((req.headers.authorization || '').replace(/^Bearer /, ''), viewToken);
     if (/^\/(?:hls|snapshot|mjpeg)\//.test(path))
-      return equalSecret(url.searchParams.get('view_token'), viewToken);
+      return equalSecret(url.searchParams.get('view_token'), viewToken)
+        || equalSecret((req.headers.authorization || '').replace(/^Bearer /, ''), viewToken);
     return false;
   };
   const json = (res, status, obj) => {
