@@ -30,6 +30,7 @@ Add an RTSP URI (for example rtsp://camera-user:camera-pass@192.168.1.20:554/liv
 | GET /embed/{id} | Embeddable HLS/MJPEG browser player |
 | GET /view/{activityId}/{pageId} | Simulator activity-grid playback preview with positioned video tiles |
 | GET /hls/{id}/index.m3u8 | H.264 HLS live playlist, generated on demand |
+| GET /snapshot/{id}.jpg | Latest JPEG frame (shared FFmpeg decoder, Qt fallback) |
 | GET /mjpeg/{id} | Low latency JPEG multipart stream |
 | GET /health | Unauthenticated health probe |
 
@@ -61,3 +62,25 @@ Run API tests from docker/rtsp-widget using npm test (a live camera is not requi
 ## Core activity picker
 
 `docker-compose-rtsp.yml` connects the sidecar to `http://core-simulator:8080` using the simulator's Web Configurator account. It defaults to the simulator's standard `web-configurator` / `1234` credentials; if you changed the PIN, set `CORE_API_PASSWORD=your-new-pin` in `docker/.env`. `CORE_API_USERNAME` and `CORE_API_URL` may be overridden if required. All requests go through the authenticated sidecar; browser responses do not contain Core credentials. Core must be running and reachable for automatic discovery. The manual ID option still works without Core.
+
+## Native Qt Remote UI simulator
+
+To display saved camera widgets **inside the actual Remote UI activity screen**, use the matching changes
+in [jstnjx/remote-ui](https://github.com/jstnjx/remote-ui). Set a separate read-only token
+in `docker/.env`:
+
+```dotenv
+RTSP_WIDGET_VIEW_TOKEN=replace-with-a-random-token-at-least-16-characters
+```
+
+Restart `rtsp-widget`. Configure the Remote UI simulator with
+`UC_RTSP_WIDGET_URL=http://127.0.0.1:8091` and
+`UC_RTSP_WIDGET_TOKEN=<same-read-only-token>` when launching the desktop app.
+The activity screen discovers widgets using the existing Core activity and page IDs.
+
+This token permits **only** reading scoped activity widget metadata and fetching HLS, MJPEG,
+or JPEG snapshot frames. It cannot modify widgets, read the administrator interface, or retrieve camera RTSP credentials.
+Keep it private and use HTTPS if accessing the service over a network rather than localhost.
+The HLS playlist URL is rewritten to include the read-only token in segment URLs for native Qt
+player compatibility. For Qt builds without a usable HLS backend, the native QML widget automatically
+falls back to an image sequence, using up to 6 JPEG frames per second.
