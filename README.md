@@ -102,3 +102,7 @@ The remote-core simulator is provided for development use only. It is prohibited
 application as part of other products, services and like.
  
 See [3rd party license information](licenses) about used 3rd party libraries and technologies in our applications.
+
+## Optional RTSP activity-stream widgets
+
+The Docker setup can optionally run a browser-facing RTSP widget service that ingests camera feeds with FFmpeg and serves them as HLS or MJPEG. It includes a secured editor, live previews, persistent widget configuration, and activity/page/grid placement metadata. See [RTSP widget documentation](docker/rtsp-widget/README.md) for installation and limitations. The stock Core executable and physical Remote UI do not natively understand this new widget type.
