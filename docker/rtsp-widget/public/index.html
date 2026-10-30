@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>UC RTSP Stream Widgets</title>
+  <link rel="stylesheet" href="/style.css">
+  <script defer src="/hls.min.js"></script><script defer src="/app.js"></script>
+</head>
+<body>
+<main>
+  <header><div><h1>RTSP Stream Widgets</h1><p>Core Simulator · Activity-scoped live video</p></div><a href="http://localhost:8080/configurator" rel="noopener">Core Configurator</a></header>
+  <section class="two-col">
+    <form id="editor" class="panel">
+      <h2 id="editor-title">New camera widget</h2>
+      <input type="hidden" id="widget-id">
+      <label>Widget name<input id="name" required maxlength="120" placeholder="Entrance camera"></label>
+      <label>RTSP source<input id="url" type="text" autocomplete="off" placeholder="rtsp://user:password@camera.local:554/stream"></label>
+      <small>Credentials stay server-side. Leave the source blank when editing to retain the existing URL.</small>
+      <div class="input-grid"><label>Activity entity ID<input id="activity" required placeholder="uc.main.activity.example"></label><label>Activity page ID<input id="page" required placeholder="page UUID"></label></div>
+      <div class="input-grid number-grid">
+        <label>X<input id="x" type="number" min="0" value="0" required></label>
+        <label>Y<input id="y" type="number" min="0" value="0" required></label>
+        <label>Width (cells)<input id="w" type="number" min="1" value="4" required></label>
+        <label>Height (cells)<input id="h" type="number" min="1" value="2" required></label>
+        <label>Grid width<input id="gw" type="number" min="1" value="4" required></label>
+        <label>Grid height<input id="gh" type="number" min="1" value="6" required></label>
+        <label>Video width (px)<input id="pixels" type="number" min="160" max="1280" value="640" required></label>
+        <label>FPS<input id="fps" type="number" min="1" max="30" value="12" required></label>
+      </div>
+      <label>Delivery mode<select id="mode"><option value="hls">HLS (H.264, widely supported)</option><option value="mjpeg">MJPEG (lower latency, higher CPU)</option></select></label>
+      <label class="check"><input id="enabled" type="checkbox" checked> Enabled</label>
+      <div class="actions"><button type="submit">Save widget</button><button type="button" class="secondary" id="clear">New widget</button></div>
+      <div role="status" id="message"></div>
+    </form>
+    <section class="panel">
+      <h2>Activity placement preview</h2>
+      <p class="muted">Placement metadata for the simulator. Stock Core and Remote UI do not render this custom widget type yet.</p>
+      <div class="preview-grid" id="grid-preview"></div>
+      <h3>Embeddable playback</h3><p class="muted">Each widget has an authenticated player URL and HLS/MJPEG streaming endpoints.</p>
+    </section>
+  </section>
+  <section class="panel"><div class="heading-row"><h2>Configured streams</h2><button id="refresh" class="secondary">Refresh</button></div><div id="widgets" class="widgets"></div></section>
+</main>
+</body>
+</html>
