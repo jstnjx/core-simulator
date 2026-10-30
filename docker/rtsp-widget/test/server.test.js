@@ -52,6 +52,13 @@ test('edit preserves source credentials, and activity scoped lookup works', asyn
   const rows = await (await request('/api/activities/uc.main.activity.tv/pages/abc/widgets')).json();
   assert.equal(rows.length, 1); assert.equal(rows[0].location.x, 2);
 });
+test('activity grid preview loads without exposing camera secret', async () => {
+  const response = await request('/view/uc.main.activity.tv/abc');
+  assert.equal(response.status, 200);
+  const html = await response.text();
+  assert.equal(html.includes('supersecret'), false);
+  assert.equal(html.includes('activity-view'), true);
+});
 test('embedded player contains no camera secret; delete works', async () => {
   const response = await request('/embed/' + id);
   assert.equal(response.status, 200);
