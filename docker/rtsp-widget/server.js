@@ -156,7 +156,7 @@ export function createApp({ password, databasePath = '/data/widgets.json', idleM
       activity_id: activityId, page_id: pageId,
       location: { x, y }, size: { width: w, height: h }, grid: { width: gw, height: gh },
       width: int(raw.width ?? old?.width ?? 640, 160, 1280, 'width'),
-      fps: int(raw.fps ?? old?.fps ?? 12, 1, 30, 'fps'),
+      fps: int(raw.fps ?? old?.fps ?? 24, 1, 30, 'fps'),
       enabled: typeof raw.enabled === 'boolean' ? raw.enabled : old?.enabled ?? true,
       mode,
       created_at: old?.created_at ?? new Date().toISOString()
@@ -287,7 +287,7 @@ export function createApp({ password, databasePath = '/data/widgets.json', idleM
       if (req.method === 'GET' && snapshot) {
         const id = snapshot[1];
         if (!byId(id)) return json(res, 404, { error: 'Widget not found' });
-        const frame = manager.snapshot(id);
+        const frame = manager.snapshotReady ? await manager.snapshotReady(id) : manager.snapshot(id);
         if (!frame) return json(res, 503, { error: 'Camera frame not ready' });
         res.writeHead(200, { 'Content-Type': 'image/jpeg', 'Cache-Control': 'no-store, max-age=0' });
         res.end(frame);
