@@ -8,7 +8,7 @@ import { createApp } from '../server.js';
 const dir = mkdtempSync(join(tmpdir(), 'rtsp-viewer-test-'));
 const viewToken = 'read-only-long-view-token';
 const manager = { status: () => ({ state: 'idle' }), stop: () => {}, start: () => {}, close: () => {},
-  snapshot: () => Buffer.from([0xff, 0xd8, 0xff, 0xd9]) };
+  snapshot: () => Buffer.from([0xff, 0xd8, 0xff, 0xd9]), mjpeg: () => false };
 const { server } = createApp({ password: 'simulator-admin-secret', viewToken,
   databasePath: join(dir, 'db.json'), managerFactory: () => manager });
 await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
@@ -46,4 +46,11 @@ test('snapshot URI requires viewer token and serves shared JPEG frame', async ()
 test('incorrect tokens do not access streams', async () => {
   assert.equal((await fetch(base + '/snapshot/' + id + '.jpg?view_token=wrong')).status, 401);
   assert.equal((await fetch(base + '/api/widgets/' + id, { headers: viewer })).status, 401);
+});
+
+test('native simulator can authenticate MJPEG with Authorization header instead of a URL token', async () => {
+  const allowed = await fetch(base + '/mjpeg/' + id, { headers: viewer });
+  assert.equal(allowed.status, 503);
+  assert.equal((await fetch(base + '/mjpeg/' + id)).status, 401);
+  assert.equal((await fetch(base + '/mjpeg/' + id, { headers: { Authorization: 'Bearer wrong' } })).status, 401);
 });

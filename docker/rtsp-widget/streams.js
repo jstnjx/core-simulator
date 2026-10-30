@@ -91,12 +91,12 @@ export class StreamManager {
       '-hide_banner', '-loglevel', 'error', '-nostdin',
       '-rtsp_transport', 'tcp', '-timeout', '5000000', '-i', config.url,
       '-map', '0:v:0', '-an',
-      '-vf', 'fps=' + Math.min(10, config.fps) + ',scale=' + config.width + ':-2',
+      '-vf', 'fps=' + Math.min(25, config.fps) + ',scale=' + config.width + ':-2:flags=fast_bilinear',
       '-q:v', '7', '-f', 'mpjpeg', '-boundary_tag', 'ucframe', 'pipe:1'
     ];
     const child = this.spawnProcess(this.ffmpeg, args, { stdio: ['ignore', 'pipe', 'ignore'] });
     this.activeMjpeg.add(child);
-    res.writeHead(200, { 'Content-Type': 'multipart/x-mixed-replace; boundary=ucframe', 'Cache-Control': 'no-store' });
+    res.writeHead(200, { 'Content-Type': 'multipart/x-mixed-replace; boundary=ucframe', 'Cache-Control': 'no-store', 'X-Accel-Buffering': 'no' });
     child.stdout.pipe(res);
     const end = () => { this.activeMjpeg.delete(child); child.kill('SIGTERM'); child.stdout.unpipe(res); };
     res.once('close', end);
