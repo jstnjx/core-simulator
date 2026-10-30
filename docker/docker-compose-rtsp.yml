@@ -1,0 +1,20 @@
+# Optional RTSP streaming sidecar for the binary Core Simulator.
+# RTSP_WIDGET_PASSWORD='a-long-secret' docker compose \
+#   -f docker-compose.yml -f docker-compose-rtsp.yml up -d --build
+services:
+  rtsp-widget:
+    build:
+      context: ./rtsp-widget
+    container_name: core-simulator-rtsp-widget
+    restart: unless-stopped
+    ports:
+      - "8091:8091"
+    environment:
+      RTSP_WIDGET_PASSWORD: ${RTSP_WIDGET_PASSWORD:-}
+      RTSP_WIDGET_IDLE_MS: 90000
+      RTSP_WIDGET_DB: /data/widgets.json
+    volumes:
+      - rtsp-widget-data:/data
+
+volumes:
+  rtsp-widget-data:
