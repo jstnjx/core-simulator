@@ -303,3 +303,24 @@ docker compose -f docker-compose.yml -f docker-compose-rtsp.yml up -d --build
 ```
 
 Open http://localhost:8091/ and sign in as `admin`. Camera RTSP sources and activity/page placement are configured in this separate browser editor. The streaming sidecar does not change Core's supported activity-widget item types, and it does not modify the bundled Web Configurator. See [RTSP widget documentation](rtsp-widget/README.md).
+
+
+## RTSP cameras in the stock Web Configurator
+
+To edit RTSP camera widgets directly inside the regular Core Simulator Web
+Configurator (without the separate editor), use the optional integrated
+Configurator proxy and streaming sidecar:
+
+```sh
+docker compose -f docker-compose.yml -f docker-compose-rtsp.yml -f docker-compose-configurator-rtsp.yml up -d --build
+```
+
+Then open **http://localhost:8081/configurator**, log in with your Core
+Web Configurator PIN and select **RTSP Cameras** (or **+ RTSP Camera** beside the
+Widgets heading where present). Edit streams, page assignment and grid
+placement directly within the Configurator. The original Configurator at
+http://localhost:8080/configurator remains available unchanged. Existing
+streams and the modified Qt Remote UI playback continue to work.
+
+See [rtsp-configurator/README.md](rtsp-configurator/README.md) for architecture,
+security, expected limitations and how to revert.

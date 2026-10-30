@@ -1,6 +1,6 @@
-# RTSP stream widgets for Core Simulator
+# RTSP widget streaming backend for Core Simulator
 
-This optional service implements activity-scoped RTSP browser widgets, RTSP-to-HLS transcoding, a low-latency MJPEG option, and a management interface. It does **not** modify the prebuilt remote-core executable or stock Qt Remote UI.
+This service stores activity-scoped RTSP camera settings, provides HLS and MJPEG streams, and exposes an API used by the modified native Qt Remote UI simulator. When the integrated Configurator is enabled, the previous standalone editor redirects to the Web Configurator.
 
 ## Quick start
 
@@ -84,3 +84,24 @@ Keep it private and use HTTPS if accessing the service over a network rather tha
 The HLS playlist URL is rewritten to include the read-only token in segment URLs for native Qt
 player compatibility. For Qt builds without a usable HLS backend, the native QML widget automatically
 falls back to an image sequence, using up to 12 JPEG updates per second and an FFmpeg source capped at 15 FPS. The first snapshot request waits briefly for the decoder to start rather than immediately returning HTTP 503.
+
+
+## Integrated Web Configurator editor (preferred)
+
+The RTSP editor is now available **inside the stock Core Simulator Web Configurator**
+through the optional same-origin proxy extension. See
+[rtsp-configurator/README.md](../rtsp-configurator/README.md).
+
+Run the three Compose files:
+
+```sh
+docker compose -f docker-compose.yml -f docker-compose-rtsp.yml -f docker-compose-configurator-rtsp.yml up -d --build
+```
+
+Open **http://localhost:8081/configurator** and sign in with your usual Core PIN.
+Use the integrated **RTSP Cameras** control; there is no need to use port 8091
+for stream editing. Existing widgets persist in the same Docker volume.
+
+The stock configurator's built-in widget schema is not modified. The injected
+editor writes RTSP sidecar placements keyed to real Core activity/page IDs; the
+custom Qt simulator displays them as an overlay on its native activity pages.
