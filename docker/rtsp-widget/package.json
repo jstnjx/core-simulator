@@ -1,0 +1,10 @@
+{
+  "name": "uc-core-simulator-rtsp-widget",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Activity-scoped RTSP playback for Core Simulator",
+  "type": "module",
+  "scripts": {"start": "node server.js", "test": "node --test"},
+  "dependencies": {"hls.js": "^1.6.0"},
+  "engines": {"node": ">=20"}
+}
