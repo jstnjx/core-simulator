@@ -13,6 +13,10 @@ services:
       RTSP_WIDGET_PASSWORD: ${RTSP_WIDGET_PASSWORD:-}
       RTSP_WIDGET_IDLE_MS: 90000
       RTSP_WIDGET_DB: /data/widgets.json
+      # Core runs in the same Compose network. Use the simulator web-configurator PIN.
+      CORE_API_URL: http://core-simulator:8080
+      CORE_API_USERNAME: ${CORE_API_USERNAME:-web-configurator}
+      CORE_API_PASSWORD: ${CORE_API_PASSWORD:-1234}
     volumes:
       - rtsp-widget-data:/data
 

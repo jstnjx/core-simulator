@@ -16,7 +16,13 @@
       <label>Widget name<input id="name" required maxlength="120" placeholder="Entrance camera"></label>
       <label>RTSP source<input id="url" type="text" autocomplete="off" placeholder="rtsp://user:password@camera.local:554/stream"></label>
       <small>Credentials stay server-side. Leave the source blank when editing to retain the existing URL.</small>
-      <div class="input-grid"><label>Activity entity ID<input id="activity" required placeholder="uc.main.activity.example"></label><label>Activity page ID<input id="page" required placeholder="page UUID"></label></div>
+      <div class="input-grid">
+        <label>Activity<select id="activity" required><option value="">Loading activities…</option></select></label>
+        <label>Activity page<select id="page" required disabled><option value="">Select an activity</option></select></label>
+      </div>
+      <div class="activity-picker-tools"><button type="button" id="reload-activities" class="secondary">Refresh activities</button><label class="check"><input type="checkbox" id="manual-ids"> Enter IDs manually</label></div>
+      <div id="manual-controls" class="input-grid" hidden><label>Activity entity ID<input id="manual-activity" placeholder="uc.main.activity.example"></label><label>Activity page ID<input id="manual-page" placeholder="page UUID"></label></div>
+      <small id="core-status" role="status">Loading activities from Core…</small>
       <div class="input-grid number-grid">
         <label>X<input id="x" type="number" min="0" value="0" required></label>
         <label>Y<input id="y" type="number" min="0" value="0" required></label>
