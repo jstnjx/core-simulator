@@ -106,3 +106,17 @@ See [3rd party license information](licenses) about used 3rd party libraries and
 ## Optional RTSP activity-stream widgets
 
 The Docker setup can optionally run a browser-facing RTSP widget service that ingests camera feeds with FFmpeg and serves them as HLS or MJPEG. It includes a secured editor, live previews, persistent widget configuration, and activity/page/grid placement metadata. See [RTSP widget documentation](docker/rtsp-widget/README.md) for installation and limitations. The stock Core executable and physical Remote UI do not natively understand this new widget type.
+
+## RTSP cameras inside the stock Web Configurator
+
+To configure RTSP camera widgets without opening the separate RTSP editor,
+add the `docker/docker-compose-configurator-rtsp.yml` overlay to the normal
+Core and RTSP Docker Compose files. Open **http://localhost:8081/configurator**
+to use the unchanged stock Web Configurator with an integrated **RTSP Cameras**
+action. Use the real activity/page selectors, grid placement controls and
+existing RTSP streams. The original port 8080 Configurator remains available.
+
+See [integrated RTSP Configurator documentation](docker/rtsp-configurator/README.md).
+The integration uses a reversible same-origin proxy, not a modification of the
+proprietary Web Configurator bundle or the Core activity-item schema. The custom
+Qt Remote UI renders sidecar camera placements on actual activity pages.
