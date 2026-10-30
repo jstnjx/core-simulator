@@ -44,7 +44,7 @@ Widget settings persist in the rtsp-widget-data Docker volume; credentials are o
 - An MJPEG mode is included for lower latency, with a maximum of four concurrent viewers.
 - HLS decoding sessions are shared per widget, started on demand, and automatically stopped after 90 seconds without requests.
 - Automatic source restart occurs on subsequent playlist requests if FFmpeg exits; stop/restart actions are available.
-- Stream resolution and frame rate are configurable, defaulting to 640 px and 12 fps. Typical HLS latency is multiple seconds.
+- Stream resolution and frame rate are configurable, defaulting to 640 px and 24 fps for new widgets. Saved widgets keep their existing FPS setting until edited. HLS uses one-second segments; actual latency depends on the decoder and player.
 - Web browser playback requires that the service be reachable on the viewer's network.
 
 ## Core API / Remote UI integration limitations
@@ -83,4 +83,4 @@ or JPEG snapshot frames. It cannot modify widgets, read the administrator interf
 Keep it private and use HTTPS if accessing the service over a network rather than localhost.
 The HLS playlist URL is rewritten to include the read-only token in segment URLs for native Qt
 player compatibility. For Qt builds without a usable HLS backend, the native QML widget automatically
-falls back to an image sequence, using up to 6 JPEG frames per second.
+falls back to an image sequence, using up to 12 JPEG updates per second and an FFmpeg source capped at 15 FPS. The first snapshot request waits briefly for the decoder to start rather than immediately returning HTTP 503.
