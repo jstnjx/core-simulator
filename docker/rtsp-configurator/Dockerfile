@@ -12,7 +12,6 @@ RUN node /patch/patch-web-configurator.mjs /build  && npm ci --no-audit --no-fun
 FROM node:22-alpine
 WORKDIR /app
 COPY package.json server.js ./
-COPY public/ ./public/
 COPY --from=configurator-build /build/dist ./native-dist/
 USER node
 EXPOSE 8081
