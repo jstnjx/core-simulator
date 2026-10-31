@@ -14,10 +14,13 @@ The build applies a small, auditable source patch to the existing:
 **Video Stream** now follows the other native widgets: it appears as a regular
 card in the Add Widget modal; selecting it opens the existing GridItemEdit popup;
 after saving it appears as a regular draggable, resizable grid item, with
-the usual edit, copy/delete and selection controls. Its body displays the live
-RTSP-to-MJPEG video stream in a Vue component; it uses the Configurator's
-existing styles, grid layout, buttons and inputs. There is no custom Shadow DOM
-sidebar, standalone editor or injected DOM widget picker in production.
+the usual edit, copy/delete and selection controls. Its grid preview is a
+**static placeholder**, using the native Media Player's layout, CSS classes,
+and responsive compact behavior, with a camera icon and the configured stream
+name. No RTSP/MJPEG connections are opened by the Configurator's grid; actual
+video playback continues in the modified Qt Remote UI simulator. The editor
+keeps its native buttons and inputs. There is no custom Shadow DOM sidebar,
+standalone editor or injected DOM widget picker in production.
 
 ## How to run
 
