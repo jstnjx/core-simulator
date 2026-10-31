@@ -13,7 +13,7 @@
   const label = el => (el && (el.textContent || '').trim() || '').replace(/\s+/g, ' ');
   let activityRows = [], pageRows = [], widgets = [], activityId = '', pageId = '';
   let selectedId = '', loading = false, busy = false, loadSerial = 0;
-  let palette = null, grid = null, slot = null, tileLayer = null, lastPath = '';
+  let palette = null, grid = null, slot = null, tileLayer = null, lastRoute = '';
   let pendingPlacement = null, message = '';
   let dragItemId = '';
   const icon = '<svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="2.5" y="6" width="14" height="12" rx="2"></rect><path d="m16.5 10 5-3v10l-5-3"></path></svg>';
@@ -324,6 +324,31 @@
       slot._vs.render();
     } catch (e) { if (serial === loadSerial) slot._vs.inform('Cannot load activity pages: ' + e.message); }
   }
+  function syncSelectedPage() {
+    if (!slot || !pageRows.length) return;
+    const fromUrl = identityFromUrl(pageRows);
+    let next = fromUrl?.id || '';
+    if (!next) {
+      const controls = document.querySelectorAll('button,[role="tab"],[aria-selected],li');
+      for (const p of pageRows) {
+        for (const el of controls) {
+          if (!visible(el) || el.closest('#' + ADDON) || label(el) !== p.name) continue;
+          const selected = el.getAttribute('aria-selected') === 'true' ||
+            el.getAttribute('aria-current') === 'page' ||
+            /(^|\s)(active|selected|current)(\s|$)/i.test(String(el.className || '')) ||
+            /(^|\s)(active|selected|current)(\s|$)/i.test(String(el.parentElement?.className || ''));
+          if (selected) { next = p.id; break; }
+        }
+        if (next) break;
+      }
+    }
+    if (next && next !== pageId) {
+      pageId = next; selectedId = '';
+      slot._vs.$('page').value = pageId;
+      slot._vs.render();
+    }
+  }
+
   async function initialize() {
     if (loading || !slot) return;
     loading = true;
@@ -356,8 +381,8 @@
     const screen = findGrid();
     if (screen) attachGrid(screen);
     else attachGrid(null);
-    if (location.pathname !== lastPath) {
-      lastPath = location.pathname;
+    if (location.pathname + location.hash !== lastRoute) {
+      lastRoute = location.pathname + location.hash;
       // Routing to another activity must update selected IDs, while preserving
       // the sidebar placement and the native Configurator controls.
       if (activityRows.length) {
@@ -372,6 +397,7 @@
         }
       }
     }
+    syncSelectedPage();
   }
   // The stock Configurator is an SPA; mutation events and route changes may
   // recreate the entire widget palette or page grid.
@@ -386,7 +412,8 @@
     new MutationObserver(queueMount).observe(document.body, { childList: true, subtree: true });
     window.addEventListener('popstate', queueMount);
     window.addEventListener('hashchange', queueMount);
-    setInterval(() => { if (location.pathname !== lastPath || (slot && !slot.isConnected)) mount(); }, 1600);
+    document.addEventListener('click', queueMount, true);
+    setInterval(() => { if (location.pathname + location.hash !== lastRoute || (slot && !slot.isConnected)) mount(); }, 1600);
   };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
   else boot();
