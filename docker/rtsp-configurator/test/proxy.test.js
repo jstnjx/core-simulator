@@ -44,7 +44,16 @@ test('unmodified Core APIs and static injected UI are served', async () => {
   assert.deepEqual(await (await fetch(url + '/api/whatever')).json(), { core: true });
   const js = await fetch(url + '/rtsp-addon/editor.js');
   assert.equal(js.status, 200);
-  assert.match(await js.text(), /RTSP Camera Widgets/);
+  const script = await js.text();
+  assert.match(script, /Video Stream/);
+  assert.doesNotMatch(script, /RTSP Camera Widgets|id="rtsp-launch"|id="rtsp-shade"/);
+  assert.match(script, /findPalette/);
+  assert.match(script, /findGrid/);
+  assert.match(script, /application\/x-uc-video-stream/);
+  assert.doesNotThrow(() => new Function(script));
+  const css = await fetch(url + '/rtsp-addon/editor.css');
+  assert.equal(css.status, 200);
+  assert.match(await css.text(), /video-stream-panel/);
 });
 test('sidecar APIs reject users not logged into Core', async () => {
   const resp = await fetch(url + '/rtsp-addon/api/widgets');
@@ -69,4 +78,10 @@ test('cross-site, missing CSRF header and arbitrary sidecar paths are blocked', 
   assert.equal((await fetch(url + '/rtsp-addon/api/core/activities', { method: 'POST', headers: base, body: '{}' })).status, 405);
   assert.equal((await fetch(url + '/rtsp-addon/api/health', { headers: { Cookie: 'session=valid' } })).status, 404);
   assert.equal((await fetch(url + '/rtsp-addon/api/widgets?unexpected=1', { headers: { Cookie: 'session=valid' } })).status, 400);
+});
+
+test('the Video Stream extension never modifies the Core activity API payload', async () => {
+  const response = await fetch(url + '/api/activities?limit=1');
+  assert.equal(response.status, 200);
+  assert.deepEqual(await response.json(), []);
 });
