@@ -317,8 +317,10 @@ docker compose -f docker-compose.yml -f docker-compose-rtsp.yml -f docker-compos
 
 Then open **http://localhost:8081/configurator**, log in with your Core
 Web Configurator PIN and open an activity's **Edit user interface** screen.
-The stock **Widgets** area now contains **Video Stream** alongside the existing
-widget types. Click or drag Video Stream to configure RTSP URL, grid position,
+Open the stock **Add → Widgets** picker; **Video Stream** is inserted
+next to the existing **Media Player**, **Button**, and **Select** options using
+the built-in Media Player tile's actual styling. Click or drag it to configure
+RTSP URL, grid position,
 dimensions and FPS in the inline widget inspector. Saved Video Stream tiles
 appear as an overlay on the activity grid, and render on the modified desktop
 Remote UI. The separate floating RTSP Cameras editor has been removed.
