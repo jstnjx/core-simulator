@@ -13,6 +13,7 @@ FROM node:22-alpine
 WORKDIR /app
 COPY package.json server.js ./
 COPY --from=configurator-build /build/dist ./native-dist/
+COPY --from=configurator-build /build/LICENSE ./native-dist/LICENSE
 USER node
 EXPOSE 8081
 CMD ["node", "server.js"]
