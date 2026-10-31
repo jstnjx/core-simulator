@@ -239,7 +239,7 @@
     $('widget').addEventListener('click', add);
     $('widget').addEventListener('dragstart', e => {
       reset();
-      if (e.dataTransfer) { e.dataTransfer.effectAllowed = 'copy'; e.dataTransfer.setData('text/plain', 'uc-video-stream'); }
+      if (e.dataTransfer) { e.dataTransfer.effectAllowed = 'copy'; e.dataTransfer.setData('application/x-uc-video-stream', '1'); e.dataTransfer.setData('text/plain', 'uc-video-stream'); }
     });
     $('collapse').addEventListener('click', () => { $('inspector').hidden = true; inform(''); render(); });
     $('activity').addEventListener('change', async () => {
@@ -286,8 +286,8 @@
     if (next === grid && tileLayer?.isConnected) return;
     if (tileLayer) tileLayer.remove();
     if (grid && grid._vsDragHandlers) {
-      grid.removeEventListener('dragover', grid._vsDragHandlers[0]);
-      grid.removeEventListener('drop', grid._vsDragHandlers[1]);
+      grid.removeEventListener('dragover', grid._vsDragHandlers[0], true);
+      grid.removeEventListener('drop', grid._vsDragHandlers[1], true);
       delete grid._vsDragHandlers;
     }
     grid = next; tileLayer = null;
@@ -297,14 +297,14 @@
     tileLayer.style.cssText = 'position:absolute;inset:0;pointer-events:none;z-index:20;overflow:hidden;';
     grid.append(tileLayer);
     const over = e => {
-      if (e.dataTransfer && Array.from(e.dataTransfer.types).includes('text/plain')) { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; }
+      if (e.dataTransfer && Array.from(e.dataTransfer.types).includes('application/x-uc-video-stream')) { e.preventDefault(); e.stopImmediatePropagation(); e.dataTransfer.dropEffect = 'copy'; }
     };
     const drop = e => {
-      if (e.dataTransfer?.getData('text/plain') !== 'uc-video-stream') return;
-      e.preventDefault(); slot._vs.placeAt(e.clientX, e.clientY);
+      if (e.dataTransfer?.getData('application/x-uc-video-stream') !== '1') return;
+      e.preventDefault(); e.stopImmediatePropagation(); slot._vs.placeAt(e.clientX, e.clientY);
     };
-    grid.addEventListener('dragover', over);
-    grid.addEventListener('drop', drop);
+    grid.addEventListener('dragover', over, true);
+    grid.addEventListener('drop', drop, true);
     grid._vsDragHandlers = [over, drop];
     slot._vs.render();
   }
