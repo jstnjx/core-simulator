@@ -60,6 +60,14 @@
   // The stock picker is a Vue component bundled in the Core image. Copy an
   // actual built-in widget tile rather than imitating its markup and theme.
   // Cloning preserves Vue-scoped classes, spacing, typography and icons.
+  let recentAddControl = 0;
+  // Core 2.x uses a transient Add menu. Remember an actual Add click to
+  // recognize widget lists whose icon-only entries have no visible labels.
+  document.addEventListener('click', event => {
+    const source = event.target?.closest?.('button,[role="button"]');
+    const name = normalizeWidgetText(source?.textContent || source?.getAttribute('aria-label'));
+    if (/^(?:add|hinzufügen)$/i.test(name) && isEditorOpen()) recentAddControl = Date.now();
+  }, true);
   const typeNames = {
     media: /\b(?:media[\s-]?(?:player|widget|control)|media(?:player)?|medien[\s-]?(?:player|widget|steuerung)|medienwiedergabe)\b/i,
     select: /\b(?:select(?:ion)?(?:\s+widget)?|auswahl(?:-widget)?|dropdown)\b/i,
@@ -127,9 +135,16 @@
         // built-in Media, Icon/Text, Button or Select choices.
         const siblings = entries.filter(e => e.kind !== 'media' &&
           Array.from(parent.children).some(sibling => sibling !== card && sibling.contains?.(e.label)));
-        if (!siblings.length) continue;
         const menu = widgetMenuRegion(card);
-        if (!isEditorOpen() && !menu) continue;
+        const widgetHeading = menu && /(?:^|\\s)(?:widgets?|ui widgets?|widget-types?|steuerelemente)(?:$|\\s)/i.test(
+          normalizeWidgetText(menu.querySelector?.('h2,h3,h4,h5,legend,[role="heading"]')?.textContent));
+        const recentAdd = Date.now() - recentAddControl < 90000;
+        const otherTiles = Array.from(parent.children).filter(sibling =>
+          sibling !== card && visible(sibling) && sibling.getBoundingClientRect().height >= 18).length;
+        // A recognized neighboring type is the strongest signal; a named
+        // Widgets menu or a recent Add action also permits icon-only tiles.
+        if (!siblings.length && !(menu && (widgetHeading || recentAdd) && otherTiles >= 1)) continue;
+        if (!isEditorOpen() && !menu && !recentAdd) continue;
         // Reject a broad unrelated list containing device entities by
         // requiring the card to have a nearby sibling of a widget type.
         return { card, sourceText: normalizeWidgetText(media.label.textContent) ||
@@ -208,6 +223,31 @@
     }, true);
     return clone;
   }
+  // Safe diagnostics: report only the presence and structure of known widget
+  // entries. Do not serialize DOM HTML, user input fields, camera URLs or auth.
+  window.ucVideoStreamDiagnostics = () => {
+    const matches = Array.from(document.querySelectorAll(
+      'button,[role="button"],[role="option"],span,div,li,[title],[aria-label]'))
+      .filter(el => visible(el) && !el.closest('#' + ADDON))
+      .map(el => ({ kind: widgetKind(el), el }))
+      .filter(record => record.kind)
+      .filter(record => !Array.from(record.el.children).some(c => widgetKind(c) === record.kind))
+      .slice(0, 35)
+      .map(record => ({
+        kind: record.kind,
+        tag: record.el.tagName,
+        label: normalizeWidgetText(record.el.textContent).slice(0, 45),
+        parentTag: record.el.parentElement?.tagName || '',
+        parentClass: String(record.el.parentElement?.className || '').slice(0, 100),
+        nearbyCards: record.el.parentElement?.parentElement?.children?.length || 0
+      }));
+    const detected = findNativeWidgetTemplate();
+    const result = { script: 'loaded', editorDetected: isEditorOpen(),
+      nativePickerFound: !!detected, nativeEntryInserted: !!nativeTile?.isConnected,
+      recentAdd: Date.now() - recentAddControl < 90000, candidates: matches };
+    console.table(result.candidates);
+    return result;
+  };
   let nativeTile = null;
   function ensureNativeWidgetPicker() {
     const template = findNativeWidgetTemplate();
