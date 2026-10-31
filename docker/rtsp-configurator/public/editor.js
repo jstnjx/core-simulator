@@ -198,8 +198,18 @@
           'top:' + (100 * w.location.y / gridSize.height) + '%;' +
           'width:' + (100 * w.size.width / gridSize.width) + '%;' +
           'height:' + (100 * w.size.height / gridSize.height) + '%;';
+        if (w.id !== '__draft' && w.enabled) {
+          const img = document.createElement('img');
+          img.alt = '';
+          img.src = '/rtsp-addon/media/mjpeg/' + encodeURIComponent(w.id);
+          img.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;' +
+            'object-fit:cover;pointer-events:none;';
+          t.append(img);
+        }
         const content = document.createElement('span');
         content.textContent = '▣  ' + (w.name || 'Video Stream');
+        content.style.cssText = 'position:absolute;left:0;right:0;bottom:0;padding:5px 3px;' +
+          'background:rgba(0,0,0,.65);pointer-events:none;text-align:center;';
         t.append(content);
         t.title = 'Video Stream · ' + w.name + ' · Click to edit or drag to reposition';
         t.addEventListener('click', e => { e.stopPropagation(); if (w.id !== '__draft') edit(w.id); });
