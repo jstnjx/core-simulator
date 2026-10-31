@@ -305,27 +305,33 @@ docker compose -f docker-compose.yml -f docker-compose-rtsp.yml up -d --build
 Open http://localhost:8091/ and sign in as `admin`. Camera RTSP sources and activity/page placement are configured in this separate browser editor. The streaming sidecar does not change Core's supported activity-widget item types, and it does not modify the bundled Web Configurator. See [RTSP widget documentation](rtsp-widget/README.md).
 
 
-## RTSP cameras in the stock Web Configurator
+## Native Video Stream widget in Web Configurator
 
-To edit RTSP camera widgets directly inside the regular Core Simulator Web
-Configurator (without the separate editor), use the optional integrated
-Configurator proxy and streaming sidecar:
+The optional `docker-compose-configurator-rtsp.yml` now builds the published
+GPL-3.0 Web Configurator 2.3.3 Vue source with a **Video Stream** widget added
+to its actual widget pool, native Add Widget modal, GridItemEdit panel and
+activity page grid. This replaces the previous injected JavaScript/Shadow DOM
+editor. Existing RTSP cameras and the Qt simulator still use the same sidecar
+database. The stock Core Simulator on port 8080 is unchanged.
 
 ```sh
 docker compose -f docker-compose.yml -f docker-compose-rtsp.yml -f docker-compose-configurator-rtsp.yml up -d --build
 ```
 
-Then open **http://localhost:8081/configurator**, log in with your Core
-Web Configurator PIN and open an activity's **Edit user interface** screen.
-Open the stock **Add → Widgets** picker; **Video Stream** is inserted
-next to the existing **Media Player**, **Button**, and **Select** options using
-the built-in Media Player tile's actual styling. Click or drag it to configure
-RTSP URL, grid position,
-dimensions and FPS in the inline widget inspector. Saved Video Stream tiles
-appear as an overlay on the activity grid, and render on the modified desktop
-Remote UI. The separate floating RTSP Cameras editor has been removed.
-The original Configurator at http://localhost:8080/configurator remains
-unchanged. Existing camera configurations are reused without migration.
+Open **http://localhost:8081/configurator/**, sign in, then open an
+activity's **User interface** page and choose **Add → Video Stream**. It has
+the same native edit UI and drag/resize grid behavior as other widgets.
 
-See [rtsp-configurator/README.md](rtsp-configurator/README.md) for architecture,
-security, expected limitations and how to revert.
+The first build requires the source archive at
+`https://files.unfolded.tools/web-configurator-2.3.3.tar.gz`; override
+`WEB_CONFIGURATOR_SOURCE_URL` at build time if hosting it elsewhere.
+The Docker build type-checks the patched Vue source before compilation.
+
+**Compatibility:** this browser app is newer than the 2.1.0 frontend shipped
+with Core Simulator 0.74.1. Normal widget items are still saved through the
+official Core API; Video Stream items are stripped before Core saves and
+persisted in the RTSP sidecar because the stock Core schema cannot accept
+them. The original 2.1.0 Configurator remains available at port 8080.
+
+Details, limitations and rollback instructions:
+[Native RTSP Configurator](rtsp-configurator/README.md).
