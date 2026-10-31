@@ -104,7 +104,13 @@ edit('src/components/activity/ActivityRemote.vue', (s, f) => {
     '    } catch (videoError) {\n' +
     '      console.warn("Video Stream metadata unavailable", videoError);\n' +
     '    }\n' +
-    '  } catch (e) {\n    addErrorBottom(e);\n  }\n  loading.value = false;\n});', f);
+    '  } catch (e) {\n    addErrorBottom(e);\n  }\n  loading.value = false;\n});', f);  s = once(s, "  const widgetHeight = Math.ceil(\n    mediaPlayerMinHeight.value /\n      (gridDimensions.value.height /\n        pages.value[activePage.value]?.grid?.height),\n  );",
+    "  // A quarter-screen media player needs ceil(grid rows / 4) cells.\n  // Avoid 0/0 when the hidden activity page hasn't been measured yet.\n  const gridRows = pages.value[activePage.value]?.grid?.height || 0;\n  const widgetHeight = Math.max(1, Math.ceil(gridRows / 4));", f);
+  s = once(s, "  const mediaMinHeight = Math.ceil(\n    mediaPlayerMinHeight.value / (gridDimensions.value.height / newHeight),\n  );",
+    "  const mediaMinHeight = Math.max(1, Math.ceil(newHeight / 4));", f);
+  s = once(s, "    const mediaMinHeight = Math.ceil(\n      mediaPlayerMinHeight.value /\n        (gridDimensions.value.height / pages.value[pageInd]?.grid?.height),\n    );",
+    "    const mediaMinHeight = Math.max(1, Math.ceil((pages.value[pageInd]?.grid?.height || 4) / 4));", f);
+
   return s;
 });
 
