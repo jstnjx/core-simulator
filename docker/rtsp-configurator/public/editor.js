@@ -61,50 +61,79 @@
   // actual built-in widget tile rather than imitating its markup and theme.
   // Cloning preserves Vue-scoped classes, spacing, typography and icons.
   const typeNames = {
-    media: /^(?:media[\s-]?player|media[\s-]?player widget|medienplayer|medien-player)$/i,
-    select: /^(?:select|select widget|auswahl|auswahl-widget)$/i,
-    button: /^(?:button|button widget|taste|tasten-widget|icon button|text button)$/i
+    media: /\b(?:media[\s-]?(?:player|widget|control)|media(?:player)?|medien[\s-]?(?:player|widget|steuerung)|medienwiedergabe)\b/i,
+    select: /\b(?:select(?:ion)?(?:\s+widget)?|auswahl(?:-widget)?|dropdown)\b/i,
+    button: /\b(?:button(?:s)?(?:\s+widget)?|icon[\s-]?widget|icon[\s-]?button|text[\s-]?widget|text[\s-]?button|taste(?:n-widget)?|symbol[\s-]?widget)\b/i
   };
-  function nativeWidgetCandidate(node) {
-    if (!node) return null;
-    const selector = 'button,[role="button"],[role="option"],li,[draggable="true"],' +
-      '[class*="widget"],[class*="Widget"],[class*="list-item"],' +
-      '[class*="ListItem"],[class*="cursor-pointer"],[class*="v-card"]';
-    let item = node.closest('button,[role="button"],[role="option"],li,[draggable="true"]') ||
-      node.closest(selector) || node.parentElement;
-    // Some Web Configurator versions put a widget-related class on the text
-    // span itself; promote that span to the actual clickable card.
-    for (let depth = 0; item && depth < 4; depth++, item = item.parentElement) {
-      const r = item.getBoundingClientRect();
-      if (r.width >= 75 && r.height >= 28 && r.height <= 220 && r.width <= 750) return item;
+  // Display text may be split across nested spans or supplied only by title,
+  // aria-label, data attributes or a tooltip. Never require one exact label.
+  const normalizeWidgetText = value => String(value || '').replace(/[\u00a0\s]+/g, ' ').trim();
+  function widgetKind(el) {
+    const values = [
+      el.textContent,
+      el.getAttribute?.('aria-label'),
+      el.getAttribute?.('title'),
+      el.getAttribute?.('data-type'),
+      el.getAttribute?.('data-widget-type')
+    ].map(normalizeWidgetText).filter(value => value && value.length < 85);
+    for (const value of values) {
+      if (typeNames.media.test(value)) return 'media';
+      if (typeNames.select.test(value)) return 'select';
+      if (typeNames.button.test(value)) return 'button';
     }
     return null;
   }
+  function nativeWidgetCandidate(node) {
+    if (!node) return null;
+    const role = 'button,[role="button"],[role="option"],li,[draggable],' +
+      '[class*="widget"],[class*="Widget"],[class*="item"],[class*="Item"],' +
+      '[class*="card"],[class*="Card"],[class*="cursor-pointer"],[class*="v-card"]';
+    return node.closest(role) || node.parentElement;
+  }
+  function widgetMenuRegion(el) {
+    const selector = '[role="dialog"],[role="menu"],[role="listbox"],[role="group"],' +
+      '[class*="menu"],[class*="Menu"],[class*="popover"],[class*="Popover"],' +
+      '[class*="overlay"],[class*="Overlay"],[class*="dialog"],[class*="Dialog"]';
+    return el.closest(selector);
+  }
+  // Return a native widget tile whose *siblings* represent other types. This
+  // avoids relying on the old "Media Player" / "Button" / "Select" translations.
   function findNativeWidgetTemplate() {
-    // A native widget picker is reliable evidence of activity editing even
-    // when its modal hides the underlying Edit / Add controls.
     if (!location.pathname.startsWith('/configurator')) return null;
-    const list = document.querySelectorAll('button,[role="button"],[role="option"],span,div,p,li,h4,h5,h6');
-    const items = [];
+    const list = document.querySelectorAll(
+      'button,[role="button"],[role="option"],[draggable],li,span,p,div,' +
+      'h3,h4,h5,h6,[title],[aria-label],[data-type],[data-widget-type]');
+    const entries = [];
     for (const el of list) {
-      if (!visible(el) || el.closest('#' + ADDON) || el.closest('[data-uc-video-stream-native]')) continue;
-      if (Array.from(el.children).some(child => typeNames.media.test(label(child)) ||
-          typeNames.select.test(label(child)) || typeNames.button.test(label(child)))) continue;
-      const value = label(el);
-      const kind = Object.entries(typeNames).find(([name, test]) => test.test(value))?.[0];
+      if (!visible(el) || el.closest('#' + ADDON) ||
+          el.closest('[data-uc-video-stream-native]')) continue;
+      const kind = widgetKind(el);
       if (!kind) continue;
+      // Prefer the deepest label, not its parent with all the same text.
+      if (Array.from(el.children).some(child => visible(child) && widgetKind(child) === kind)) continue;
       const card = nativeWidgetCandidate(el);
-      if (card && !items.some(i => i.card === card)) items.push({ kind, label: el, card });
+      if (card && !entries.some(entry => entry.card === card && entry.kind === kind))
+        entries.push({ kind, label: el, card });
     }
-    // Require two distinct native widget types in a shared picker/list. A
-    // random "Button" or "Select" field elsewhere must not be cloned.
-    for (const media of items.filter(i => i.kind === 'media')) {
-      for (let p = media.card.parentElement, depth = 0; p && depth < 4; p = p.parentElement, depth++) {
-        if (!visible(p) || p.getBoundingClientRect().width > 1100) break;
-        const peers = items.filter(i => i !== media && p.contains(i.card));
-        if (peers.some(i => i.kind === 'button' || i.kind === 'select')) {
-          return { card: media.card, sourceText: label(media.label), parent: media.card.parentElement };
-        }
+    for (const media of entries.filter(e => e.kind === 'media')) {
+      let card = media.card;
+      for (let depth = 0; card && depth < 6; card = card.parentElement, depth++) {
+        if (!visible(card)) continue;
+        const box = card.getBoundingClientRect();
+        if (box.width < 55 || box.height < 18 || box.width > 950 || box.height > 260) continue;
+        const parent = card.parentElement;
+        if (!parent || parent.children.length < 2) continue;
+        // The real picker is a collection of sibling cards. Accept its
+        // built-in Media, Icon/Text, Button or Select choices.
+        const siblings = entries.filter(e => e.kind !== 'media' &&
+          Array.from(parent.children).some(sibling => sibling !== card && sibling.contains?.(e.label)));
+        if (!siblings.length) continue;
+        const menu = widgetMenuRegion(card);
+        if (!isEditorOpen() && !menu) continue;
+        // Reject a broad unrelated list containing device entities by
+        // requiring the card to have a nearby sibling of a widget type.
+        return { card, sourceText: normalizeWidgetText(media.label.textContent) ||
+          media.label.getAttribute?.('aria-label') || 'Media', parent, siblings: siblings.length };
       }
     }
     return null;
