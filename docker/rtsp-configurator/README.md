@@ -1,6 +1,6 @@
 # Video Stream widget in the Core Simulator activity UI editor
 
-This optional extension inserts a **Video Stream** widget into the **Widgets** section of the **stock activity UI editor**. Click it to configure a camera in an inline widget inspector, or drag it onto the activity grid to select the initial position. Existing Video Stream tiles are shown on the grid overlay and in the sidebar, where they can be selected, repositioned, resized, saved or deleted.
+This optional extension inserts a **Video Stream** widget into the **Widgets** section of the **stock activity UI editor**. Click it to configure a camera in an inline widget inspector, or drag it onto the activity grid to select the initial position. Existing Video Stream tiles show a live MJPEG thumbnail on the activity grid overlay and appear in the sidebar, where they can be selected, repositioned, resized, saved or deleted.
 
 The original Web Configurator is a prebuilt application in the Core Simulator Docker image, so the extension uses a reversible same-origin proxy. The stock Configurator and its existing widget types remain intact. There is **no standalone RTSP editor and no floating RTSP Cameras dialog** in this flow.
 
