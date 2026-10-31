@@ -3,7 +3,6 @@ import { createReadStream, statSync, existsSync } from 'node:fs';
 import { dirname, join, resolve, sep, extname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import net from 'node:net';
-import { gunzipSync, inflateSync, brotliDecompressSync } from 'node:zlib';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const nativeRoot = resolve(here, 'native-dist');
