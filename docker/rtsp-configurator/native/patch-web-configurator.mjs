@@ -83,6 +83,9 @@ edit('src/components/ui/GridItemEdit.vue', (s, f) => {
 
 edit('src/components/activity/ActivityRemote.vue', (s, f) => {
   s = once(s,
+    '  layouts.value = (\n    currentActivity.value?.options?.user_interface?.pages || []\n  ).map((page) => {',
+    '  layouts.value = pages.value.map((page) => {', f);
+  s = once(s,
     'import { getComponent } from "@/composables/components";',
     'import { getComponent } from "@/composables/components";\n' +
     'import { loadVideoStreams, withVideoStreams, persistVideoStreams } from "@/composables/videoStreams";', f);
