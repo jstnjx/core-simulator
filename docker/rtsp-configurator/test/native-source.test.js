@@ -38,3 +38,23 @@ test('Docker builds the GPL frontend from the published 2.3.3 Vue sources', () =
   assert.match(dockerfile, /npm run build-only/);
   assert.doesNotMatch(dockerfile, /COPY public\//);
 });
+
+test('the grid layout is rebuilt from enriched pages, not Core-only pages', () => {
+  const patch = source('native/patch-web-configurator.mjs');
+  assert.match(patch, /layouts\.value = pages\.value\.map/);
+  assert.match(patch, /src\/composables\/remote\/editorCrud\.ts/);
+  assert.match(patch, /video_stream: newValues\.video_stream/);
+});
+test('media widgets use finite cell-based minimums without a measured DOM grid', () => {
+  const patch = source('native/patch-web-configurator.mjs');
+  assert.match(patch, /Math\.ceil\(gridRows \/ 4\)/);
+  assert.match(patch, /Math\.ceil\(props\.activePage\.grid\.height \/ 4\)/);
+  assert.match(patch, /Math\.ceil\(newHeight \/ 4\)/);
+});
+test('video fields use native widget popup and stepper wrappers', () => {
+  const patch = source('native/patch-web-configurator.mjs');
+  assert.match(patch, /widget-popup__field--text/);
+  assert.match(patch, /widget-setting widget-setting--width/);
+  assert.match(patch, /widget-setting widget-setting--height/);
+  assert.match(patch, /Math\.min\(2, gridCols\)/);
+});
