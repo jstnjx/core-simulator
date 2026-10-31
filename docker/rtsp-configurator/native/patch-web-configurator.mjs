@@ -42,15 +42,18 @@ edit('src/composables/components.ts', (s, f) => {
   s = once(s, '  console.warn("Unknown component type: " + type);',
     '  if (type === "video_stream") return ComponentButtonVideo;\n  console.warn("Unknown component type: " + type);', f);
   s = once(s, '    },\n  ] as ActivityUserInterfaceItem[];',
-    '    },\n    {\n      type: "video_stream", text: "Video Stream",\n      video_stream: { name: "Video Stream", url: "", width: 640, fps: 24 },\n      size: { width: 4, height: 2 }, location: { x: 0, y: 0 },\n    },\n  ] as ActivityUserInterfaceItem[];', f);
+    '    },\n    {\n      type: "video_stream", text: "Video Stream",\n      video_stream: { name: "Video Stream", url: "", width: 640, fps: 24 },\n      size: { width: 2, height: 2 }, location: { x: 0, y: 0 },\n    },\n  ] as ActivityUserInterfaceItem[];', f);
   return s;
 });
 
 edit('src/components/elements/widget/AddWidget.vue', (s, f) => {
   s = once(s,
+    '    const mediaMinHeight = Math.ceil(\n      props.gridDimensions.widgetMeta.mediaPlayerMinHeight /\n        (props.gridDimensions.height / gridRows),\n    );',
+    '    const mediaMinHeight = Math.max(1, Math.ceil(gridRows / 4));', f);
+  s = once(s,
     '  } else if (item.type == "slider") {',
     '  } else if (item.type === "video_stream") {\n' +
-    '    uiItem.size.width = Math.min(4, gridCols);\n' +
+    '    uiItem.size.width = Math.min(2, gridCols);\n' +
     '    uiItem.size.height = Math.min(2, gridRows);\n' +
     '  } else if (item.type == "slider") {', f);
   s = once(s,
@@ -136,6 +139,28 @@ edit('src/components/activity/ActivityRemote.vue', (s, f) => {
     '      console.warn("Video Stream metadata unavailable", videoError);\n' +
     '    }\n' +
     '  } catch (e) {\n    addErrorBottom(e);\n  }\n  loading.value = false;\n});', f);
+  return s;
+});
+
+edit('src/composables/remote/editorCrud.ts', (s, f) => {
+  // Preserve Video Stream metadata through the stock grid-editor CRUD pipeline.
+  s = once(s,
+    '      ...(newValues.select && { select: newValues.select }),',
+    '      ...(newValues.select && { select: newValues.select }),\n' +
+    '      ...(newValues.type === "video_stream" && newValues.video_stream && {\n' +
+    '        video_stream: newValues.video_stream,\n' +
+    '        text: newValues.video_stream.name || "Video Stream",\n' +
+    '      }),', f);
+  s = once(s,
+    '      newValues.type !== "sensor" &&\n      newValues.type !== "select"',
+    '      newValues.type !== "sensor" &&\n      newValues.type !== "select" &&\n' +
+    '      newValues.type !== "video_stream"', f);
+  s = once(s,
+    '    } else if (\n      newValues.type === "media_player" &&',
+    '    } else if (\n      newValues.type === "video_stream" &&\n' +
+    '      !!(newValues.video_stream?.id || newValues.video_stream?.url)\n' +
+    '    ) {\n      saveableItem.value = true;\n' +
+    '    } else if (\n      newValues.type === "media_player" &&', f);
   return s;
 });
 
