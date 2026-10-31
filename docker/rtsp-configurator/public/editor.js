@@ -44,16 +44,12 @@
   }
   function isEditorOpen() {
     if (!location.pathname.startsWith('/configurator')) return false;
-    const modeLabels = ['Move', 'Edit', 'Select', 'Test'];
-    const present = modeLabels.filter(text => findExactText(text).length > 0);
-    const uiTab = findExactText('User interface').length > 0 ||
-      findExactText('User Interface').length > 0;
-    const gridButton = findExactText('Grid').length > 0;
-    const resetButton = findExactText('Reset').length > 0;
-    const stockWidgets = findExactText('Widgets').length > 0 ||
-      findExactText('Widget').length > 0 ||
-      findExactText('Media widget').length > 0 ||
-      findExactText('Text widget').length > 0;
+    const modeLabels = [['Move','Bewegen'],['Edit','Bearbeiten'],['Select','Auswählen'],['Test','Testen']];
+    const present = modeLabels.filter(names => names.some(name => findExactText(name).length > 0));
+    const uiTab = ['User interface','Benutzeroberfläche','User Interface'].some(name => findExactText(name).length > 0);
+    const gridButton = ['Grid','Raster'].some(name => findExactText(name).length > 0);
+    const resetButton = ['Reset','Zurücksetzen'].some(name => findExactText(name).length > 0);
+    const stockWidgets = ['Widgets','Widget','Media widget','Text widget','Medien-Widget','Text-Widget'].some(name => findExactText(name).length > 0);
     // Default editing screen has a four-state Move/Edit/Select/Test switch
     // and Grid/Reset tools even BEFORE opening the stock "Add" menu.
     return (present.length >= 3 && (gridButton || resetButton || uiTab)) ||
@@ -62,7 +58,7 @@
   function findPalette() {
     if (!isEditorOpen()) return null;
     // Prefer the actual stock Widgets section whenever it is expanded.
-    for (const name of ['Widgets', 'Widget', 'Media widget', 'Text widget']) {
+    for (const name of ['Widgets', 'Widget', 'Media widget', 'Text widget', 'Medien-Widget', 'Text-Widget']) {
       for (const heading of findExactText(name)) {
         const parent = heading.parentElement;
         if (!parent) continue;
@@ -73,7 +69,7 @@
     }
     // On newer stock Configurators, "Add" is an edit-mode control; there is
     // NO "Widgets" heading until Add has been clicked. Insert next to Add.
-    const addCandidates = findExactText('Add').filter(e =>
+    const addCandidates = ['Add','Hinzufügen'].flatMap(name => findExactText(name)).filter(e =>
       e.matches('button,[role="button"]') || e.closest('button,[role="button"]'));
     if (addCandidates.length) {
       const add = addCandidates.find(x => x.getBoundingClientRect().right > innerWidth * .5) || addCandidates[0];
@@ -82,7 +78,7 @@
     }
     // In Move mode, only Grid and Reset are visible on the right of the
     // activity screen. Keep Video Stream discoverable without changing modes.
-    for (const name of ['Grid', 'Reset']) {
+    for (const name of ['Grid', 'Reset', 'Raster', 'Zurücksetzen']) {
       const buttons = findExactText(name);
       const chosen = buttons.find(x => x.getBoundingClientRect().right > innerWidth * .5);
       if (chosen) {
@@ -91,7 +87,7 @@
       }
     }
     // Last resort INSIDE the editor, not elsewhere in the Configurator.
-    const modes = findExactText('Test');
+    const modes = [...findExactText('Test'), ...findExactText('Testen')];
     if (modes.length) {
       const anchor = modes[0].closest('button,[role="button"]') || modes[0];
       return { heading: anchor, anchor, source: 'mode' };
