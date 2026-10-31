@@ -1,6 +1,9 @@
 import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
 import http from 'node:http';
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { createServer } from '../server.js';
 
 const start = async server => {
@@ -28,32 +31,37 @@ const sidecar = http.createServer((req, res) => {
 });
 const coreBase = await start(core);
 const sidecarBase = await start(sidecar);
-const proxy = createServer({ coreUrl: coreBase, rtspUrl: sidecarBase, rtspPassword: 'server-only-secret' });
+const nativeDirectory = mkdtempSync(join(tmpdir(), 'uc-native-rtsp-test-'));
+mkdirSync(join(nativeDirectory, 'assets', 'js'), { recursive: true });
+writeFileSync(join(nativeDirectory, 'index.html'), '<!doctype html><html><body><div id="app">Native Video Stream</div></body></html>');
+writeFileSync(join(nativeDirectory, 'assets', 'js', 'test.js'), 'console.log("native widget loaded");');
+const proxy = createServer({ coreUrl: coreBase, rtspUrl: sidecarBase,
+  rtspPassword: 'server-only-secret', nativeDirectory });
 const url = await start(proxy);
-after(async () => { await Promise.all([core, sidecar, proxy].map(s => new Promise(resolve => s.close(resolve)))); });
+after(async () => {
+  await Promise.all([core, sidecar, proxy].map(s => new Promise(resolve => s.close(resolve))));
+  rmSync(nativeDirectory, { recursive: true, force: true });
+});
 
-test('stock Configurator HTML gets an injected extension script', async () => {
-  const response = await fetch(url + '/configurator');
+test('the actual native Vue app is served on the integrated Configurator path', async () => {
+  const redirect = await fetch(url + '/configurator', { redirect: 'manual' });
+  assert.equal(redirect.status, 302);
+  assert.equal(redirect.headers.get('location'), '/configurator/');
+  const response = await fetch(url + '/configurator/');
   assert.equal(response.status, 200);
   const html = await response.text();
-  assert.match(html, /\/rtsp-addon\/editor\.js/);
-  assert.doesNotMatch(html, /rel="stylesheet" href="\/rtsp-addon\/editor\.css/);
-  assert.match(html, /Hello there/);
+  assert.match(html, /Native Video Stream/);
+  assert.doesNotMatch(html, /rtsp-addon\/editor\.js/);
+  const asset = await fetch(url + '/configurator/assets/js/test.js');
+  assert.equal(asset.status, 200);
+  assert.match(await asset.text(), /native widget loaded/);
 });
-test('unmodified Core APIs and static injected UI are served', async () => {
+
+test('legacy injected JS and CSS are gone and Core API remains intact', async () => {
   assert.deepEqual(await (await fetch(url + '/api/whatever')).json(), { core: true });
-  const js = await fetch(url + '/rtsp-addon/editor.js');
-  assert.equal(js.status, 200);
-  const script = await js.text();
-  assert.match(script, /Video Stream/);
-  assert.doesNotMatch(script, /RTSP Camera Widgets|id="rtsp-launch"|id="rtsp-shade"/);
-  assert.match(script, /findPalette/);
-  assert.match(script, /findGrid/);
-  assert.match(script, /application\/x-uc-video-stream/);
-  assert.doesNotThrow(() => new Function(script));
-  const css = await fetch(url + '/rtsp-addon/editor.css');
-  assert.equal(css.status, 200);
-  assert.match(await css.text(), /video-stream-panel/);
+  assert.equal((await fetch(url + '/rtsp-addon/editor.js')).status, 404);
+  assert.equal((await fetch(url + '/rtsp-addon/editor.css')).status, 404);
+  assert.equal((await fetch(url + '/configurator/assets/js/not-found.js')).status, 404);
 });
 test('sidecar APIs reject users not logged into Core', async () => {
   const resp = await fetch(url + '/rtsp-addon/api/widgets');

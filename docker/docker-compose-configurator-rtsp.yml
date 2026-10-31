@@ -1,9 +1,11 @@
-# Optional stock Web Configurator extension (keep Core on localhost:8080).
+# Optional native Vue Web Configurator build with Video Stream (Core remains on 8080).
 # Compose with docker-compose.yml and docker-compose-rtsp.yml.
 services:
   rtsp-configurator:
     build:
       context: ./rtsp-configurator
+      args:
+        WEB_CONFIGURATOR_SOURCE_URL: ${WEB_CONFIGURATOR_SOURCE_URL:-https://files.unfolded.tools/web-configurator-2.3.3.tar.gz}
     container_name: core-simulator-rtsp-configurator
     restart: unless-stopped
     ports:
