@@ -33,29 +33,70 @@
   function identityFromUrl(rows) {
     return rows.find(p => location.href.includes(encodeURIComponent(p.id)) || location.href.includes(p.id));
   }
-  function findHeading() {
-    // The official Vue Configurator has used several heading/tab components;
-    // match the visible text instead of version-specific generated class names.
-    const nodes = document.querySelectorAll('h2,h3,h4,h5,h6,legend,button,span,div,p');
-    for (const el of nodes) {
-      if (el.id === ADDON || el.closest('#' + ADDON)) continue;
-      if (!visible(el)) continue;
-      if (!/^widgets?$/i.test(label(el))) continue;
-      if (el.children.length && Array.from(el.children).some(c => /^widgets?$/i.test(label(c)))) continue;
-      if (el.getBoundingClientRect().width > 550) continue;
-      return el;
-    }
-    return null;
+  function findExactText(text, roots = document) {
+    const candidates = roots.querySelectorAll('button,[role="button"],[role="tab"],h2,h3,h4,h5,h6,legend,span,p,div');
+    return Array.from(candidates).filter(el =>
+      visible(el) && !el.closest('#' + ADDON) &&
+      label(el).toLowerCase() === text.toLowerCase() &&
+      // Match the smallest textual leaf, not a broad enclosing panel.
+      !Array.from(el.children).some(c => label(c).toLowerCase() === text.toLowerCase())
+    );
+  }
+  function isEditorOpen() {
+    if (!location.pathname.startsWith('/configurator')) return false;
+    const modeLabels = ['Move', 'Edit', 'Select', 'Test'];
+    const present = modeLabels.filter(text => findExactText(text).length > 0);
+    const uiTab = findExactText('User interface').length > 0 ||
+      findExactText('User Interface').length > 0;
+    const gridButton = findExactText('Grid').length > 0;
+    const resetButton = findExactText('Reset').length > 0;
+    const stockWidgets = findExactText('Widgets').length > 0 ||
+      findExactText('Widget').length > 0 ||
+      findExactText('Media widget').length > 0 ||
+      findExactText('Text widget').length > 0;
+    // Default editing screen has a four-state Move/Edit/Select/Test switch
+    // and Grid/Reset tools even BEFORE opening the stock "Add" menu.
+    return (present.length >= 3 && (gridButton || resetButton || uiTab)) ||
+      (stockWidgets && (uiTab || gridButton || present.length >= 2));
   }
   function findPalette() {
-    const heading = findHeading();
-    if (!heading) return null;
-    const parent = heading.parentElement;
-    if (!parent) return null;
-    // Avoid injecting into the actual tab-bar's inline flex row.
-    const hasPagesTab = Array.from(parent.children).some(e => e !== heading && /^pages$/i.test(label(e)));
-    const anchor = hasPagesTab || getComputedStyle(parent).display.includes('flex') ? parent : heading;
-    return { heading, anchor };
+    if (!isEditorOpen()) return null;
+    // Prefer the actual stock Widgets section whenever it is expanded.
+    for (const name of ['Widgets', 'Widget', 'Media widget', 'Text widget']) {
+      for (const heading of findExactText(name)) {
+        const parent = heading.parentElement;
+        if (!parent) continue;
+        const anchor = (getComputedStyle(parent).display.includes('flex') &&
+          parent.getBoundingClientRect().width < 240) ? parent : heading;
+        return { heading, anchor, source: 'widgets' };
+      }
+    }
+    // On newer stock Configurators, "Add" is an edit-mode control; there is
+    // NO "Widgets" heading until Add has been clicked. Insert next to Add.
+    const addCandidates = findExactText('Add').filter(e =>
+      e.matches('button,[role="button"]') || e.closest('button,[role="button"]'));
+    if (addCandidates.length) {
+      const add = addCandidates.find(x => x.getBoundingClientRect().right > innerWidth * .5) || addCandidates[0];
+      const anchor = add.closest('button,[role="button"]') || add;
+      return { heading: anchor, anchor, source: 'add' };
+    }
+    // In Move mode, only Grid and Reset are visible on the right of the
+    // activity screen. Keep Video Stream discoverable without changing modes.
+    for (const name of ['Grid', 'Reset']) {
+      const buttons = findExactText(name);
+      const chosen = buttons.find(x => x.getBoundingClientRect().right > innerWidth * .5);
+      if (chosen) {
+        const anchor = chosen.closest('button,[role="button"]') || chosen;
+        return { heading: anchor, anchor, source: 'tools' };
+      }
+    }
+    // Last resort INSIDE the editor, not elsewhere in the Configurator.
+    const modes = findExactText('Test');
+    if (modes.length) {
+      const anchor = modes[0].closest('button,[role="button"]') || modes[0];
+      return { heading: anchor, anchor, source: 'mode' };
+    }
+    return null;
   }
   function findGrid() {
     const nodes = document.querySelectorAll(
