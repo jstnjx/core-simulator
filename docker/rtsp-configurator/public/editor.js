@@ -66,7 +66,14 @@
   document.addEventListener('click', event => {
     const source = event.target?.closest?.('button,[role="button"]');
     const name = normalizeWidgetText(source?.textContent || source?.getAttribute('aria-label'));
-    if (/^(?:add|hinzufügen)$/i.test(name) && isEditorOpen()) recentAddControl = Date.now();
+    if (/^(?:add(?: widgets?| controls?)?|hinzufügen(?: (?:widget|widgets|steuerelemente))?)$/i.test(name) && isEditorOpen()) {
+      recentAddControl = Date.now();
+      setTimeout(() => {
+        if (!document.querySelector('[data-uc-video-stream-native]')) {
+          console.info('[Video Stream] Add menu opened, but no native widget match yet. Inspect with ucVideoStreamDiagnostics()');
+        }
+      }, 1100);
+    }
   }, true);
   const typeNames = {
     media: /\b(?:media[\s-]?(?:player|widget|control)|media(?:player)?|medien[\s-]?(?:player|widget|steuerung)|medienwiedergabe)\b/i,
