@@ -70,11 +70,15 @@
     const selector = 'button,[role="button"],[role="option"],li,[draggable="true"],' +
       '[class*="widget"],[class*="Widget"],[class*="list-item"],' +
       '[class*="ListItem"],[class*="cursor-pointer"],[class*="v-card"]';
-    let item = node.closest(selector);
-    if (!item) item = node.parentElement;
-    if (!item) return null;
-    const r = item.getBoundingClientRect();
-    return r.width >= 55 && r.height >= 18 && r.height <= 220 && r.width <= 750 ? item : null;
+    let item = node.closest('button,[role="button"],[role="option"],li,[draggable="true"]') ||
+      node.closest(selector) || node.parentElement;
+    // Some Web Configurator versions put a widget-related class on the text
+    // span itself; promote that span to the actual clickable card.
+    for (let depth = 0; item && depth < 4; depth++, item = item.parentElement) {
+      const r = item.getBoundingClientRect();
+      if (r.width >= 75 && r.height >= 28 && r.height <= 220 && r.width <= 750) return item;
+    }
+    return null;
   }
   function findNativeWidgetTemplate() {
     if (!isEditorOpen()) return null;
@@ -188,8 +192,11 @@
     const styles = getComputedStyle(template.card);
     const bodyStyles = getComputedStyle(template.card.parentElement);
     if (slot) {
+      const color = c => c && !['transparent', 'rgba(0, 0, 0, 0)'].includes(c);
+      const fallbackBackground = getComputedStyle(document.body).backgroundColor;
       slot.style.setProperty('--vs-native-background',
-        bodyStyles.backgroundColor === 'rgba(0, 0, 0, 0)' ? styles.backgroundColor : bodyStyles.backgroundColor);
+        color(bodyStyles.backgroundColor) ? bodyStyles.backgroundColor :
+        color(styles.backgroundColor) ? styles.backgroundColor : fallbackBackground);
       slot.style.setProperty('--vs-native-text', styles.color);
       slot.style.setProperty('--vs-native-radius', styles.borderRadius);
       slot.style.setProperty('--vs-native-border', styles.borderColor);
@@ -405,12 +412,12 @@
       reset();
       if (e.dataTransfer) { e.dataTransfer.effectAllowed = 'copy'; e.dataTransfer.setData('application/x-uc-video-stream', '1'); e.dataTransfer.setData('text/plain', 'uc-video-stream'); }
     });
-    $('collapse').addEventListener('click', () => { $('inspector').hidden = true; inform(''); render(); });
+    $('collapse').addEventListener('click', () => { $('inspector').hidden = true; h.style.display = 'none'; inform(''); render(); });
     $('activity').addEventListener('change', async () => {
       activityId = $('activity').value; pageId = ''; selectedId = '';
       await fetchPages(); render();
     });
-    $('page').addEventListener('change', () => { pageId = $('page').value; selectedId = ''; $('inspector').hidden = true; render(); });
+    $('page').addEventListener('change', () => { pageId = $('page').value; selectedId = ''; $('inspector').hidden = true; h.style.display = 'none'; render(); });
     ['name','x','y','w','h','width','fps'].forEach(key => $(key).addEventListener('input', renderOverlay));
     $('save').addEventListener('click', async () => {
       if (busy) return;
