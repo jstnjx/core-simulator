@@ -59,7 +59,7 @@
   }
   function findGrid() {
     const nodes = document.querySelectorAll(
-      '[class*="grid"],[class*="Grid"],[class*="screen"],[class*="Screen"],[class*="preview"],[class*="Preview"]');
+      '[class*="grid"],[class*="Grid"],[class*="screen"],[class*="Screen"],[class*="preview"],[class*="Preview"],[id*="grid"],[id*="Grid"],[id*="screen"],[id*="Screen"]');
     let best = null, score = -1;
     for (const el of nodes) {
       if (!visible(el) || el.closest('#' + ADDON) || el.closest('#uc-video-stream-overlay')) continue;
@@ -67,7 +67,7 @@
       if (r.width < 150 || r.height < 210 || r.width > 1000 || r.height > 1150) continue;
       if (r.right < 0 || r.left > innerWidth) continue;
       const styles = getComputedStyle(el);
-      const name = String(el.className || '');
+      const name = String(el.className || '') + ' ' + el.id;
       const isGrid = styles.display === 'grid' || /(?:ui|activity|screen|remote|widget).*(?:grid|screen|preview)|grid.*(?:screen|activity)/i.test(name);
       if (!isGrid) continue;
       const ratio = r.width / r.height;
@@ -188,6 +188,12 @@
         const t = document.createElement('div');
         t.className = 'uc-video-stream-tile' + (w.id === selectedId ? ' selected' : '');
         t.style.cssText =
+          'position:absolute;z-index:3;pointer-events:auto;cursor:move;' +
+          'display:flex;align-items:center;justify-content:center;' +
+          'background:rgba(14,35,58,.92);color:#e7f1ff;text-align:center;' +
+          'font:600 12px/1.3 system-ui,sans-serif;border:2px solid ' +
+          (w.id === selectedId ? '#f2bf6b' : '#74a8ff') + ';' +
+          'box-sizing:border-box;border-radius:5px;overflow:hidden;' +
           'left:' + (100 * w.location.x / gridSize.width) + '%;' +
           'top:' + (100 * w.location.y / gridSize.height) + '%;' +
           'width:' + (100 * w.size.width / gridSize.width) + '%;' +
