@@ -4,60 +4,68 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
-const code = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../public/editor.js'), 'utf8');
-const block = code.slice(code.indexOf('  const typeNames ='), code.indexOf('  function findGrid() {'));
-assert.ok(block.includes('cloneFirstPartyWidget'));
-assert.ok(block.includes('findNativeWidgetTemplate'));
-const functions = new Function('document', 'location', 'visible', 'label', 'getComputedStyle',
-  'innerWidth', 'ADDON', 'slot', block +
-  'return { findNativeWidgetTemplate, cloneFirstPartyWidget };');
+const source = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../public/editor.js'), 'utf8');
+const detection = source.slice(source.indexOf('  const typeNames ='), source.indexOf('  function cloneFirstPartyWidget('));
+const detect = new Function(
+  'document', 'location', 'visible', 'ADDON', 'isEditorOpen', 'recentAddControl',
+  detection + 'return findNativeWidgetTemplate;'
+);
 
-function fixture(names, pathname = '/configurator/activities/tv/ui') {
-  let picker;
-  const tiles = names.map(text => {
-    const card = {
-      parentElement: null, isConnected: true,
-      getBoundingClientRect: () => ({ width: 178, height: 86 }),
-    };
-    const leaf = {
-      isConnected: true, textContent: text, children: [], parentElement: card,
-      closest: selector => selector.includes('button') ? card : null,
-      getBoundingClientRect: () => ({ width: 104, height: 28 })
-    };
-    return { card, leaf };
-  });
-  picker = {
-    parentElement: null,
-    getBoundingClientRect: () => ({ width: 430, height: 460 }),
-    contains: card => tiles.some(x => x.card === card),
+function fixture(names, options = {}) {
+  const cards = [];
+  const labels = [];
+  const parent = {
+    children: cards, parentElement: null,
+    getBoundingClientRect: () => ({ width: 460, height: 450 }),
+    closest: () => null
   };
-  tiles.forEach(x => { x.card.parentElement = picker; });
-  const document = { querySelectorAll: () => tiles.map(x => x.leaf) };
-  const visible = () => true;
-  const label = el => String(el?.textContent || '').trim();
-  const fn = functions(document, { pathname }, visible, label,
-    () => ({ display: 'block' }), 1200, 'uc-video-stream-addon', null);
-  return fn.findNativeWidgetTemplate();
+  for (const item of names) {
+    const value = typeof item === 'string' ? { label: item } : item;
+    const card = {
+      parentElement: parent, children: [],
+      closest: () => null,
+      getBoundingClientRect: () => ({ width: 180, height: 65 }),
+      contains(node) { return this.children.includes(node); }
+    };
+    const el = {
+      textContent: value.label || '', children: [], parentElement: card,
+      getAttribute: key => value.attrs?.[key] || null,
+      closest: selector => selector.startsWith('#') ||
+        selector.startsWith('[data-uc-video-stream') ? null : card,
+      getBoundingClientRect: () => ({ width: 145, height: 28 })
+    };
+    card.children.push(el); cards.push(card); labels.push(el);
+  }
+  const document = { querySelectorAll: () => labels };
+  const finder = detect(document, { pathname: options.path || '/configurator/activities/tv/ui' },
+    () => true, 'uc-video-stream-addon', () => options.editor !== false,
+    options.recent ? Date.now() : 0);
+  return finder();
 }
 
-test('uses real Media Player card next to built-in Button and Select widget entries', () => {
-  const result = fixture(['Button', 'Select', 'Media Player']);
-  assert.equal(result?.sourceText, 'Media Player');
+test('detects stock Media Player, Button and Select cards', () => {
+  assert.equal(fixture(['Media Player', 'Button', 'Select'])?.sourceText, 'Media Player');
 });
-test('German widget picker is supported', () => {
-  const result = fixture(['Taste', 'Auswahl', 'Medienplayer']);
-  assert.equal(result?.sourceText, 'Medienplayer');
+test('detects the official Media / Icon / Text widget labels', () => {
+  assert.equal(fixture(['Media widget', 'Icon widget', 'Text widget'])?.sourceText, 'Media widget');
 });
-test('does not inject for isolated Media Player or unrelated menus', () => {
+test('supports localized media widgets and split accessibility labels', () => {
+  assert.equal(fixture(['Medienplayer', 'Taste', 'Auswahl'])?.sourceText, 'Medienplayer');
+  assert.equal(fixture([
+    { label: '', attrs: { 'aria-label': 'Media Player' } },
+    'Button'
+  ])?.sourceText, 'Media Player');
+});
+test('does not insert in unrelated pages or without a widget picker', () => {
   assert.equal(fixture(['Media Player']), null);
   assert.equal(fixture(['Button', 'Select']), null);
-  assert.equal(fixture(['Button', 'Select', 'Media Player'], '/dashboard'), null);
+  assert.equal(fixture(['Media Player', 'Select'], { path: '/dashboard' }), null);
 });
-test('native option is visually cloned, with unique IDs and custom video icon', () => {
-  assert.match(block, /\.cloneNode\(true\)/);
-  assert.match(block, /removeAttribute\('id'\)/);
-  assert.match(block, /aria-label', 'Video Stream'/);
-  assert.match(block, /data-uc-video-stream-native/);
-  assert.match(block, /stopImmediatePropagation/);
-  assert.match(block, /application\/x-uc-video-stream/);
+test('native style is taken from the real card without cloning Vue listeners', () => {
+  assert.match(source, /\.cloneNode\(true\)/);
+  assert.match(source, /removeAttribute\('id'\)/);
+  assert.match(source, /aria-label', 'Video Stream'/);
+  assert.match(source, /data-uc-video-stream-native/);
+  assert.match(source, /application\/x-uc-video-stream/);
+  assert.match(source, /ucVideoStreamDiagnostics/);
 });
