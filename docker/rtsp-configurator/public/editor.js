@@ -5,6 +5,8 @@
   // the RTSP sidecar, keyed by the current Core activity and UI page.
   if (window.__ucVideoStreamWidget) return;
   window.__ucVideoStreamWidget = true;
+  document.documentElement.dataset.ucVideoStreamAddon = 'loaded';
+  console.info('[Video Stream] Configurator extension loaded');
   const API = '/rtsp-addon/api';
   const ADDON = 'uc-video-stream-addon';
   const cell = (v, fallback) => Number.isInteger(+v) ? +v : fallback;
@@ -420,10 +422,11 @@
       attachGrid(null);
       return;
     }
-    if (!slot) { slot = createUI(); initialize(); }
+    if (!slot) { slot = createUI(); initialize(); console.info('[Video Stream] Activity widget controls mounted'); }
     if (found.anchor !== palette || !slot.isConnected) {
       palette = found.anchor;
       palette.insertAdjacentElement('afterend', slot);
+      console.info('[Video Stream] Controls placed next to', found.source);
     }
     const screen = findGrid();
     if (screen) attachGrid(screen);
