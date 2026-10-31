@@ -89,6 +89,8 @@ edit('src/components/ui/GridItemEdit.vue', (s, f) => {
     '  localSettings.value.text = localSettings.value.video_stream.name;\n' +
     '  emitChange();\n' +
     '}\n', f);
+  s = once(s, 'const disableCopy = computed(() => {',
+    'const disableCopy = computed(() => {\n  if (props.settings.type === "video_stream") return true;', f);
   s = once(s, '        <div\n          v-if="localSettings.type === \'icon\'"',
     '        <div v-if="localSettings.type === \'video_stream\'" class="widget-popup__field">\n' +
     '          <UCInput v-model="videoStreamName" label="Name" :full-w="true" @submit="updateVideoStream" />\n' +
