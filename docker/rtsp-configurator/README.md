@@ -1,53 +1,51 @@
-# RTSP widgets inside the stock Core Simulator Web Configurator
+# Video Stream widget in the Core Simulator activity UI editor
 
-This optional **local reverse proxy** adds an RTSP camera widget editor to the existing, prebuilt Unfolded Circle Web Configurator. It neither changes nor redistributes the stock proprietary frontend or the prebuilt Core executable.
+This optional extension inserts a **Video Stream** widget into the **Widgets** section of the **stock activity UI editor**. Click it to configure a camera in an inline widget inspector, or drag it onto the activity grid to select the initial position. Existing Video Stream tiles show a live MJPEG thumbnail on the activity grid overlay and appear in the sidebar, where they can be selected, repositioned, resized, saved or deleted.
 
-## What it does
+The original Web Configurator is a prebuilt application in the Core Simulator Docker image, so the extension uses a reversible same-origin proxy. The stock Configurator and its existing widget types remain intact. There is **no standalone RTSP editor and no floating RTSP Cameras dialog** in this flow.
 
-The original Web Configurator continues to run on `http://localhost:8080/configurator` and is proxied, unchanged, through `http://localhost:8081/configurator`. Only the HTML entry point receives two additional same-origin JS/CSS asset references. Inside the real Web Configurator, there is a **RTSP Cameras** control in the bottom-right corner and an additional **+ RTSP Camera** action beside a *Widgets* heading when that heading exists in the activity UI editor. The latter is best-effort and depends on stock frontend layout.
+## Start
 
-The integrated overlay adds:
-
-- Core-backed activity and activity-page selection.
-- Camera URL entry, frame-rate, width, enable state, and grid coordinates/sizes.
-- Click-to-position activity-grid preview and live MJPEG preview.
-- Existing camera management (edit, disable, delete), preserving saved RTSP camera URLs.
-- Immediate compatibility with the modified `jstnjx/remote-ui` simulator's native MJPEG player.
-
-The sidecar continues to own `widgets.json` and FFmpeg sessions. Existing saved camera widgets are reused without migration or database resets. **RTSP widgets remain sidecar metadata**, not a new item type in Core's official activity UI schema; the stock Configurator cannot serialize this custom type or show video inside its built-in grid preview. The integrated extension provides a separate grid overlay preview within the Configurator, and the modified Qt simulator renders it in the real activity page.
-
-## Run
-
-From the `core-simulator/docker` directory, with your existing `RTSP_WIDGET_PASSWORD` and `RTSP_WIDGET_VIEW_TOKEN` configured in `.env`:
+From `core-simulator/docker`, with `RTSP_WIDGET_PASSWORD` and `RTSP_WIDGET_VIEW_TOKEN` set in `.env`:
 
 ```sh
 docker compose -f docker-compose.yml -f docker-compose-rtsp.yml -f docker-compose-configurator-rtsp.yml up -d --build
 ```
 
-Open **http://localhost:8081/configurator**, sign in using your normal Web Configurator PIN, then use **RTSP Cameras** in the same browser page. From the activity UI editor, look for **+ RTSP Camera** near the stock *Widgets* section. If the installed frontend version does not expose that heading, use the persistent RTSP Cameras entry instead.
+Open **http://localhost:8081/configurator** and sign in with the usual Web Configurator PIN. Open an activity, choose **Edit user interface**, and look for **Video Stream** in the existing **Widgets** section alongside other widget types.
 
-The previous standalone editor at `http://localhost:8091/` redirects to the integrated Configurator while this Compose overlay is in use. Port `8080` remains unmodified, providing a safe fallback if the extension or proxy fails. All other `/api`, `/ws`, authentication, static resources and normal Configurator functions pass through the proxy. Do not run the standalone editor to edit streams after switching to this overlay.
+Choose the activity page, click or drag Video Stream, enter a name and RTSP URL, configure X/Y, width/height, output width and FPS, and click **Save Video Stream**. Existing streams can be selected through the sidebar list or by clicking their overlay tiles on the activity grid. Drag an existing tile to reposition it and save. Native desktop `remote-ui` receives updates from the same RTSP service and renders the feed.
+
+The extension attempts to track the selected Core activity and UI page automatically from routes and active page tabs. The activity and page selectors in the widget's inline inspector are a fallback for frontend versions that do not expose selection in the DOM.
+
+### Architecture and scope
+
+The prebuilt Core's activity-item schema **does not support a Video Stream type**. For compatibility, stream settings are stored in the existing `rtsp-widget-data` Docker volume and keyed by the real Core activity ID, UI page ID and grid position. The page editor shows Video Stream placements via an overlay on the stock grid; the underlying Core page JSON remains unchanged. The modified desktop Remote UI renders the same saved placements as live MJPEG streams. **This is not a firmware-level widget on physical Remote 3 hardware.**
+
+The integration relies on the DOM of the installed stock Web Configurator, which is not part of this repository. Detection of its Widgets palette and grid is best-effort across frontend versions; it has not yet been visually validated against your live 0.74.1-bt image. If the widget does not appear or the grid overlay is misaligned, the next step is to inspect the current editor's DOM and adjust the integration selectors.
+
+The stock Configurator at **http://localhost:8080/configurator** is completely unchanged. The reverse proxy on port 8081 injects a same-origin script into the Configurator HTML, serves stylesheet assets, forwards normal Core REST/WebSocket traffic, and protects RTSP writes using the existing Core login session. The RTSP admin password stays in the proxy container and never reaches the browser.
+
+The legacy sidecar on port 8091 still handles stream ingest/playback, and its root route redirects to the integrated Configurator when this Compose overlay is enabled. **Do not remove the sidecar:** only the separate editor is replaced.
 
 ### Security
 
-The frontend uses the existing Core session cookie. Each editing request passes through the proxy, which verifies the visitor's session against Core before authenticating to the RTSP sidecar. The secret `RTSP_WIDGET_PASSWORD` stays in the proxy container and is not exposed to the browser. Cross-origin writes, missing editor CSRF headers, and access to arbitrary RTSP sidecar paths are rejected. Live MJPEG previews use this same authenticated, same-origin proxy.
+For a trusted local developer machine, the proxy binds to `127.0.0.1:8081`. The sidecar management API is available only through a session-checked same-origin proxy route. Cross-origin writes and unsupported paths are blocked. Camera stream credentials are kept server-side and omitted from editor API responses. Do not expose ports publicly without TLS and access controls.
 
-This configuration is intended for a **trusted local development Mac** and binds the integrated frontend to `127.0.0.1:8081`. Do not expose it on a public network without TLS, network access controls, and an appropriate threat review. Note that Core and the RTSP sidecar retain their original published ports.
+### Tests
 
-### Uninstall/revert
+```sh
+cd docker/rtsp-configurator
+npm test
+```
+
+The tests cover HTML injection, static asset delivery, Core API passthrough, authentication, write restrictions, and the Video Stream editor source. Runtime placement in the stock bundled frontend still requires a browser smoke test.
+
+### Revert
 
 ```sh
 docker compose -f docker-compose.yml -f docker-compose-rtsp.yml -f docker-compose-configurator-rtsp.yml stop rtsp-configurator
 docker compose -f docker-compose.yml -f docker-compose-rtsp.yml up -d --force-recreate rtsp-widget
 ```
 
-The original Web Configurator remains at `http://localhost:8080/configurator`. There are no data migrations; the `rtsp-widget-data` volume remains intact.
-
-## Test
-
-The bridge uses Node.js 22, with no external npm runtime dependencies:
-
-```sh
-cd docker/rtsp-configurator
-npm test
-```
+Existing Video Stream records remain intact in `rtsp-widget-data`.

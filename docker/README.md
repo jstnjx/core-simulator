@@ -316,11 +316,14 @@ docker compose -f docker-compose.yml -f docker-compose-rtsp.yml -f docker-compos
 ```
 
 Then open **http://localhost:8081/configurator**, log in with your Core
-Web Configurator PIN and select **RTSP Cameras** (or **+ RTSP Camera** beside the
-Widgets heading where present). Edit streams, page assignment and grid
-placement directly within the Configurator. The original Configurator at
-http://localhost:8080/configurator remains available unchanged. Existing
-streams and the modified Qt Remote UI playback continue to work.
+Web Configurator PIN and open an activity's **Edit user interface** screen.
+The stock **Widgets** area now contains **Video Stream** alongside the existing
+widget types. Click or drag Video Stream to configure RTSP URL, grid position,
+dimensions and FPS in the inline widget inspector. Saved Video Stream tiles
+appear as an overlay on the activity grid, and render on the modified desktop
+Remote UI. The separate floating RTSP Cameras editor has been removed.
+The original Configurator at http://localhost:8080/configurator remains
+unchanged. Existing camera configurations are reused without migration.
 
 See [rtsp-configurator/README.md](rtsp-configurator/README.md) for architecture,
 security, expected limitations and how to revert.
