@@ -57,42 +57,155 @@
     return (present.length >= 3 && (gridButton || resetButton || uiTab)) ||
       (stockWidgets && (uiTab || gridButton || present.length >= 2));
   }
+  // The stock picker is a Vue component bundled in the Core image. Copy an
+  // actual built-in widget tile rather than imitating its markup and theme.
+  // Cloning preserves Vue-scoped classes, spacing, typography and icons.
+  const typeNames = {
+    media: /^(?:media[\s-]?player|media[\s-]?player widget|medienplayer|medien-player)$/i,
+    select: /^(?:select|select widget|auswahl|auswahl-widget)$/i,
+    button: /^(?:button|button widget|taste|tasten-widget|icon button|text button)$/i
+  };
+  function nativeWidgetCandidate(node) {
+    if (!node) return null;
+    const selector = 'button,[role="button"],[role="option"],li,[draggable="true"],' +
+      '[class*="widget"],[class*="Widget"],[class*="list-item"],' +
+      '[class*="ListItem"],[class*="cursor-pointer"],[class*="v-card"]';
+    let item = node.closest(selector);
+    if (!item) item = node.parentElement;
+    if (!item) return null;
+    const r = item.getBoundingClientRect();
+    return r.width >= 55 && r.height >= 18 && r.height <= 220 && r.width <= 750 ? item : null;
+  }
+  function findNativeWidgetTemplate() {
+    if (!isEditorOpen()) return null;
+    const list = document.querySelectorAll('button,[role="button"],[role="option"],span,div,p,li,h4,h5,h6');
+    const items = [];
+    for (const el of list) {
+      if (!visible(el) || el.closest('#' + ADDON) || el.closest('[data-uc-video-stream-native]')) continue;
+      if (Array.from(el.children).some(child => typeNames.media.test(label(child)) ||
+          typeNames.select.test(label(child)) || typeNames.button.test(label(child)))) continue;
+      const value = label(el);
+      const kind = Object.entries(typeNames).find(([name, test]) => test.test(value))?.[0];
+      if (!kind) continue;
+      const card = nativeWidgetCandidate(el);
+      if (card && !items.some(i => i.card === card)) items.push({ kind, label: el, card });
+    }
+    // Require two distinct native widget types in a shared picker/list. A
+    // random "Button" or "Select" field elsewhere must not be cloned.
+    for (const media of items.filter(i => i.kind === 'media')) {
+      for (let p = media.card.parentElement, depth = 0; p && depth < 4; p = p.parentElement, depth++) {
+        if (!visible(p) || p.getBoundingClientRect().width > 1100) break;
+        const peers = items.filter(i => i !== media && p.contains(i.card));
+        if (peers.some(i => i.kind === 'button' || i.kind === 'select')) {
+          return { card: media.card, sourceText: label(media.label), parent: media.card.parentElement };
+        }
+      }
+    }
+    return null;
+  }
+  function cloneFirstPartyWidget(template) {
+    const clone = template.card.cloneNode(true);
+    clone.setAttribute('data-uc-video-stream-native', '1');
+    // IDs and ARIA associations must be unique; Vue's event handlers are not
+    // carried over by cloneNode, so no stock media-player action is duplicated.
+    for (const el of [clone, ...clone.querySelectorAll('*')]) {
+      el.removeAttribute('id');
+      el.removeAttribute('aria-controls');
+      el.removeAttribute('aria-describedby');
+    }
+    clone.setAttribute('role', 'button');
+    clone.setAttribute('tabindex', '0');
+    clone.setAttribute('aria-label', 'Video Stream');
+    clone.setAttribute('title', 'Video Stream');
+    clone.setAttribute('draggable', 'true');
+    let renamed = false;
+    const walker = document.createTreeWalker(clone, NodeFilter.SHOW_TEXT);
+    while (walker.nextNode()) {
+      const textNode = walker.currentNode;
+      const text = (textNode.textContent || '').trim();
+      if (typeNames.media.test(text)) { textNode.textContent = textNode.textContent.replace(text, 'Video Stream'); renamed = true; }
+    }
+    if (!renamed) {
+      const label = clone.querySelector('span,strong,p');
+      if (label) label.textContent = 'Video Stream';
+    }
+    const iconNode = clone.querySelector('svg');
+    if (iconNode) {
+      // Preserve the native icon sizing and classes.
+      iconNode.setAttribute('viewBox', '0 0 24 24');
+      iconNode.setAttribute('fill', 'none');
+      iconNode.setAttribute('stroke', 'currentColor');
+      iconNode.setAttribute('stroke-width', '1.8');
+      iconNode.innerHTML = '<rect x="2" y="5" width="15" height="14" rx="2"/><path d="m17 10 5-3v10l-5-3z"/>';
+    }
+    else {
+      const fa = clone.querySelector('i[class*="fa-"]');
+      if (fa) {
+        fa.className = fa.className.replace(/\bfa-[a-z0-9-]+/g, x =>
+          /^fa-(?:solid|regular|light|thin|duotone|brands)$/.test(x) ? x : 'fa-video');
+      }
+    }
+    const startNew = event => {
+      if (event) {
+        event.preventDefault();
+        event.stopPropagation();
+        event.stopImmediatePropagation();
+      }
+      if (!slot) return;
+      slot._vs.reset();
+      slot.style.display = 'block';
+      slot.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      console.info('[Video Stream] Selected native widget entry');
+    };
+    clone.addEventListener('pointerdown', e => e.stopPropagation(), true);
+    clone.addEventListener('click', startNew, true);
+    clone.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') startNew(e); }, true);
+    clone.addEventListener('dragstart', e => {
+      if (!slot) return;
+      slot._vs.reset();
+      slot.style.display = 'block';
+      if (e.dataTransfer) {
+        e.dataTransfer.effectAllowed = 'copy';
+        e.dataTransfer.setData('application/x-uc-video-stream', '1');
+        e.dataTransfer.setData('text/plain', 'uc-video-stream');
+      }
+      e.stopPropagation();
+    }, true);
+    return clone;
+  }
+  let nativeTile = null;
+  function ensureNativeWidgetPicker() {
+    const template = findNativeWidgetTemplate();
+    if (!template) {
+      if (nativeTile && !nativeTile.isConnected) nativeTile = null;
+      return;
+    }
+    if (nativeTile?.isConnected && nativeTile.previousElementSibling === template.card) return;
+    if (nativeTile) nativeTile.remove();
+    nativeTile = cloneFirstPartyWidget(template);
+    template.card.insertAdjacentElement('afterend', nativeTile);
+    // Match the native editor's colors in the settings panel as well.
+    const styles = getComputedStyle(template.card);
+    const bodyStyles = getComputedStyle(template.card.parentElement);
+    if (slot) {
+      slot.style.setProperty('--vs-native-background',
+        bodyStyles.backgroundColor === 'rgba(0, 0, 0, 0)' ? styles.backgroundColor : bodyStyles.backgroundColor);
+      slot.style.setProperty('--vs-native-text', styles.color);
+      slot.style.setProperty('--vs-native-radius', styles.borderRadius);
+      slot.style.setProperty('--vs-native-border', styles.borderColor);
+    }
+    console.info('[Video Stream] Native widget tile inserted alongside Media Player');
+  }
+
+  // Inspector is attached to the persistent editor controls rather than the
+  // transient "Add widget" menu, which Vue can destroy on selection.
   function findPalette() {
     if (!isEditorOpen()) return null;
-    // Prefer the actual stock Widgets section whenever it is expanded.
-    for (const name of ['Widgets', 'Widget', 'Media widget', 'Text widget', 'Medien-Widget', 'Text-Widget']) {
-      for (const heading of findExactText(name)) {
-        const parent = heading.parentElement;
-        if (!parent) continue;
-        const anchor = (getComputedStyle(parent).display.includes('flex') &&
-          parent.getBoundingClientRect().width < 240) ? parent : heading;
-        return { heading, anchor, source: 'widgets' };
-      }
-    }
-    // On newer stock Configurators, "Add" is an edit-mode control; there is
-    // NO "Widgets" heading until Add has been clicked. Insert next to Add.
-    const addCandidates = ['Add','Hinzufügen'].flatMap(name => findExactText(name)).filter(e =>
-      e.matches('button,[role="button"]') || e.closest('button,[role="button"]'));
-    if (addCandidates.length) {
-      const add = addCandidates.find(x => x.getBoundingClientRect().right > innerWidth * .5) || addCandidates[0];
-      const anchor = add.closest('button,[role="button"]') || add;
-      return { heading: anchor, anchor, source: 'add' };
-    }
-    // In Move mode, only Grid and Reset are visible on the right of the
-    // activity screen. Keep Video Stream discoverable without changing modes.
-    for (const name of ['Grid', 'Reset', 'Raster', 'Zurücksetzen']) {
-      const buttons = findExactText(name);
-      const chosen = buttons.find(x => x.getBoundingClientRect().right > innerWidth * .5);
-      if (chosen) {
-        const anchor = chosen.closest('button,[role="button"]') || chosen;
-        return { heading: anchor, anchor, source: 'tools' };
-      }
-    }
-    // Last resort INSIDE the editor, not elsewhere in the Configurator.
-    const modes = [...findExactText('Test'), ...findExactText('Testen')];
-    if (modes.length) {
-      const anchor = modes[0].closest('button,[role="button"]') || modes[0];
-      return { heading: anchor, anchor, source: 'mode' };
+    for (const name of ['Add','Hinzufügen','Grid','Raster','Reset','Zurücksetzen']) {
+      const hits = findExactText(name).filter(e =>
+        e.matches('button,[role="button"]') || e.closest('button,[role="button"]'));
+      const best = hits.find(el => el.getBoundingClientRect().right > innerWidth * .5) || hits[0];
+      if (best) return { anchor: best.closest('button,[role="button"]') || best, source: 'editor controls' };
     }
     return null;
   }
@@ -123,6 +236,7 @@
   function createUI() {
     const h = document.createElement('div');
     h.id = ADDON;
+    h.style.display = 'none';
     const shadow = h.attachShadow({ mode: 'open' });
     const css = document.createElement('link');
     css.rel = 'stylesheet'; css.href = '/rtsp-addon/editor.css'; shadow.append(css);
@@ -172,12 +286,13 @@
       $('w').value = String(Math.min(4, pageGrid().width));
       $('h').value = String(Math.min(2, pageGrid().height));
       $('width').value = '640'; $('fps').value = '24'; $('enabled').checked = true;
-      $('inspector').hidden = false; inform(''); render();
+      $('inspector').hidden = false; h.style.display = 'block'; inform(''); render();
     };
     const edit = id => {
       const w = widgets.find(w => w.id === id); if (!w) return;
       selectedId = id; pendingPlacement = null;
       $('inspector').hidden = false;
+      h.style.display = 'block';
       $('title').textContent = 'Video Stream: ' + w.name;
       $('name').value = w.name; $('url').value = ''; $('url').placeholder = 'Leave empty to keep saved RTSP URL';
       $('x').value = String(w.location.x); $('y').value = String(w.location.y);
@@ -419,15 +534,17 @@
     const found = findPalette();
     if (!found) {
       if (slot) { slot.remove(); slot = null; }
+      if (nativeTile) { nativeTile.remove(); nativeTile = null; }
       attachGrid(null);
       return;
     }
-    if (!slot) { slot = createUI(); initialize(); console.info('[Video Stream] Activity widget controls mounted'); }
+    if (!slot) { slot = createUI(); initialize(); console.info('[Video Stream] Video Stream inspector ready'); }
     if (found.anchor !== palette || !slot.isConnected) {
       palette = found.anchor;
       palette.insertAdjacentElement('afterend', slot);
-      console.info('[Video Stream] Controls placed next to', found.source);
+      console.info('[Video Stream] Inspector mounted in', found.source);
     }
+    ensureNativeWidgetPicker();
     const screen = findGrid();
     if (screen) attachGrid(screen);
     else attachGrid(null);
