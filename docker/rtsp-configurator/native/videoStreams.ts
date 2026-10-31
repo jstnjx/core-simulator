@@ -65,6 +65,9 @@ export async function persistVideoStreams(page: ActivityUserInterfacePage, activ
     };
     if (url) payload.url = url;
     const old = existing.find(row => row.id === meta.id);
+    if (meta.id && !old) {
+      throw new Error("Cannot copy Video Stream credentials to another page. Add a new Video Stream instead.");
+    }
     const changed = !old || url || old.name !== payload.name ||
       JSON.stringify(old.location) !== JSON.stringify(payload.location) ||
       JSON.stringify(old.size) !== JSON.stringify(payload.size) ||
