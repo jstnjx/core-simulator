@@ -5,6 +5,8 @@
   // the RTSP sidecar, keyed by the current Core activity and UI page.
   if (window.__ucVideoStreamWidget) return;
   window.__ucVideoStreamWidget = true;
+  document.documentElement.dataset.ucVideoStreamAddon = 'loaded';
+  console.info('[Video Stream] Configurator extension loaded');
   const API = '/rtsp-addon/api';
   const ADDON = 'uc-video-stream-addon';
   const cell = (v, fallback) => Number.isInteger(+v) ? +v : fallback;
@@ -33,29 +35,66 @@
   function identityFromUrl(rows) {
     return rows.find(p => location.href.includes(encodeURIComponent(p.id)) || location.href.includes(p.id));
   }
-  function findHeading() {
-    // The official Vue Configurator has used several heading/tab components;
-    // match the visible text instead of version-specific generated class names.
-    const nodes = document.querySelectorAll('h2,h3,h4,h5,h6,legend,button,span,div,p');
-    for (const el of nodes) {
-      if (el.id === ADDON || el.closest('#' + ADDON)) continue;
-      if (!visible(el)) continue;
-      if (!/^widgets?$/i.test(label(el))) continue;
-      if (el.children.length && Array.from(el.children).some(c => /^widgets?$/i.test(label(c)))) continue;
-      if (el.getBoundingClientRect().width > 550) continue;
-      return el;
-    }
-    return null;
+  function findExactText(text, roots = document) {
+    const candidates = roots.querySelectorAll('button,[role="button"],[role="tab"],h2,h3,h4,h5,h6,legend,span,p,div');
+    return Array.from(candidates).filter(el =>
+      visible(el) && !el.closest('#' + ADDON) &&
+      label(el).toLowerCase() === text.toLowerCase() &&
+      // Match the smallest textual leaf, not a broad enclosing panel.
+      !Array.from(el.children).some(c => label(c).toLowerCase() === text.toLowerCase())
+    );
+  }
+  function isEditorOpen() {
+    if (!location.pathname.startsWith('/configurator')) return false;
+    const modeLabels = [['Move','Bewegen'],['Edit','Bearbeiten'],['Select','Auswählen'],['Test','Testen']];
+    const present = modeLabels.filter(names => names.some(name => findExactText(name).length > 0));
+    const uiTab = ['User interface','Benutzeroberfläche','User Interface'].some(name => findExactText(name).length > 0);
+    const gridButton = ['Grid','Raster'].some(name => findExactText(name).length > 0);
+    const resetButton = ['Reset','Zurücksetzen'].some(name => findExactText(name).length > 0);
+    const stockWidgets = ['Widgets','Widget','Media widget','Text widget','Medien-Widget','Text-Widget'].some(name => findExactText(name).length > 0);
+    // Default editing screen has a four-state Move/Edit/Select/Test switch
+    // and Grid/Reset tools even BEFORE opening the stock "Add" menu.
+    return (present.length >= 3 && (gridButton || resetButton || uiTab)) ||
+      (stockWidgets && (uiTab || gridButton || present.length >= 2));
   }
   function findPalette() {
-    const heading = findHeading();
-    if (!heading) return null;
-    const parent = heading.parentElement;
-    if (!parent) return null;
-    // Avoid injecting into the actual tab-bar's inline flex row.
-    const hasPagesTab = Array.from(parent.children).some(e => e !== heading && /^pages$/i.test(label(e)));
-    const anchor = hasPagesTab || getComputedStyle(parent).display.includes('flex') ? parent : heading;
-    return { heading, anchor };
+    if (!isEditorOpen()) return null;
+    // Prefer the actual stock Widgets section whenever it is expanded.
+    for (const name of ['Widgets', 'Widget', 'Media widget', 'Text widget', 'Medien-Widget', 'Text-Widget']) {
+      for (const heading of findExactText(name)) {
+        const parent = heading.parentElement;
+        if (!parent) continue;
+        const anchor = (getComputedStyle(parent).display.includes('flex') &&
+          parent.getBoundingClientRect().width < 240) ? parent : heading;
+        return { heading, anchor, source: 'widgets' };
+      }
+    }
+    // On newer stock Configurators, "Add" is an edit-mode control; there is
+    // NO "Widgets" heading until Add has been clicked. Insert next to Add.
+    const addCandidates = ['Add','Hinzufügen'].flatMap(name => findExactText(name)).filter(e =>
+      e.matches('button,[role="button"]') || e.closest('button,[role="button"]'));
+    if (addCandidates.length) {
+      const add = addCandidates.find(x => x.getBoundingClientRect().right > innerWidth * .5) || addCandidates[0];
+      const anchor = add.closest('button,[role="button"]') || add;
+      return { heading: anchor, anchor, source: 'add' };
+    }
+    // In Move mode, only Grid and Reset are visible on the right of the
+    // activity screen. Keep Video Stream discoverable without changing modes.
+    for (const name of ['Grid', 'Reset', 'Raster', 'Zurücksetzen']) {
+      const buttons = findExactText(name);
+      const chosen = buttons.find(x => x.getBoundingClientRect().right > innerWidth * .5);
+      if (chosen) {
+        const anchor = chosen.closest('button,[role="button"]') || chosen;
+        return { heading: anchor, anchor, source: 'tools' };
+      }
+    }
+    // Last resort INSIDE the editor, not elsewhere in the Configurator.
+    const modes = [...findExactText('Test'), ...findExactText('Testen')];
+    if (modes.length) {
+      const anchor = modes[0].closest('button,[role="button"]') || modes[0];
+      return { heading: anchor, anchor, source: 'mode' };
+    }
+    return null;
   }
   function findGrid() {
     const nodes = document.querySelectorAll(
@@ -383,10 +422,11 @@
       attachGrid(null);
       return;
     }
-    if (!slot) { slot = createUI(); initialize(); }
+    if (!slot) { slot = createUI(); initialize(); console.info('[Video Stream] Activity widget controls mounted'); }
     if (found.anchor !== palette || !slot.isConnected) {
       palette = found.anchor;
       palette.insertAdjacentElement('afterend', slot);
+      console.info('[Video Stream] Controls placed next to', found.source);
     }
     const screen = findGrid();
     if (screen) attachGrid(screen);
