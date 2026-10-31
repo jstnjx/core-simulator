@@ -85,3 +85,14 @@ test('the Video Stream extension never modifies the Core activity API payload', 
   assert.equal(response.status, 200);
   assert.deepEqual(await response.json(), []);
 });
+
+test('live Video Stream grid previews require a Core session and use the restricted media proxy', async () => {
+  const camera = '00000000-0000-4000-8000-000000000001';
+  const path = '/rtsp-addon/media/mjpeg/' + camera;
+  assert.equal((await fetch(url + path)).status, 401);
+  const ok = await fetch(url + path, { headers: { Cookie: 'session=valid' } });
+  assert.equal(ok.status, 200);
+  assert.equal(upstreamAuthorization, 'Basic ' + Buffer.from('admin:server-only-secret').toString('base64'));
+  assert.equal((await fetch(url + '/rtsp-addon/media/mjpeg/invalid',
+    { headers: { Cookie: 'session=valid' } })).status, 404);
+});
