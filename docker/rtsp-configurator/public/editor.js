@@ -81,7 +81,9 @@
     return null;
   }
   function findNativeWidgetTemplate() {
-    if (!isEditorOpen()) return null;
+    // A native widget picker is reliable evidence of activity editing even
+    // when its modal hides the underlying Edit / Add controls.
+    if (!location.pathname.startsWith('/configurator')) return null;
     const list = document.querySelectorAll('button,[role="button"],[role="option"],span,div,p,li,h4,h5,h6');
     const items = [];
     for (const el of list) {
@@ -539,17 +541,33 @@
   function mount() {
     if (!document.body || !location.pathname.startsWith('/configurator')) return;
     const found = findPalette();
-    if (!found) {
+    const template = findNativeWidgetTemplate();
+    if (!found && !template) {
       if (slot) { slot.remove(); slot = null; }
       if (nativeTile) { nativeTile.remove(); nativeTile = null; }
       attachGrid(null);
       return;
     }
-    if (!slot) { slot = createUI(); initialize(); console.info('[Video Stream] Video Stream inspector ready'); }
-    if (found.anchor !== palette || !slot.isConnected) {
+    if (!slot) {
+      slot = createUI();
+      initialize();
+      console.info('[Video Stream] Video Stream inspector ready');
+    }
+    if (found && (found.anchor !== palette || !slot.isConnected)) {
       palette = found.anchor;
       palette.insertAdjacentElement('afterend', slot);
+      slot.style.position = '';
+      slot.style.width = '';
       console.info('[Video Stream] Inspector mounted in', found.source);
+    } else if (!found && !slot.isConnected && template) {
+      // The picker may be an overlay that temporarily hides the Add toolbar.
+      // Keep a usable first-party-style inspector when the menu closes.
+      document.body.append(slot);
+      Object.assign(slot.style, {
+        position: 'fixed', top: '90px', right: '24px',
+        width: 'min(360px,calc(100vw - 40px))',
+        zIndex: '2147483000', maxHeight: 'calc(100vh - 115px)', overflowY: 'auto'
+      });
     }
     ensureNativeWidgetPicker();
     const screen = findGrid();
