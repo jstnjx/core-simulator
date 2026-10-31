@@ -1,11 +1,47 @@
 import http from 'node:http';
-import { createReadStream, readFileSync, statSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { createReadStream, readFileSync, statSync, existsSync } from 'node:fs';
+import { dirname, join, resolve, sep, extname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import net from 'node:net';
 import { gunzipSync, inflateSync, brotliDecompressSync } from 'node:zlib';
 
 const here = dirname(fileURLToPath(import.meta.url));
+const nativeRoot = resolve(here, 'native-dist');
+const nativeExists = existsSync(join(nativeRoot, 'index.html'));
+const contentTypes = new Map([
+  ['.html', 'text/html; charset=utf-8'], ['.js', 'application/javascript; charset=utf-8'],
+  ['.css', 'text/css; charset=utf-8'], ['.json', 'application/json; charset=utf-8'],
+  ['.svg', 'image/svg+xml'], ['.png', 'image/png'], ['.jpg', 'image/jpeg'],
+  ['.jpeg', 'image/jpeg'], ['.webp', 'image/webp'], ['.woff2', 'font/woff2'],
+  ['.woff', 'font/woff'], ['.ttf', 'font/ttf'], ['.ico', 'image/x-icon']
+]);
+function sendNativeFile(req, res, pathname) {
+  if (!nativeExists || !['GET','HEAD'].includes(req.method)) return false;
+  let name;
+  try { name = decodeURIComponent(pathname); } catch { return false; }
+  if (name.startsWith('/configurator')) name = name.slice('/configurator'.length);
+  else if (!/^(?:\/images\/|\/fonts\/|\/assets\/)/.test(name)) return false;
+  if (!name || name === '/') name = '/index.html';
+  const file = resolve(nativeRoot, '.' + name);
+  if (file !== nativeRoot && !file.startsWith(nativeRoot + sep)) return false;
+  let selected = file;
+  try {
+    if (!statSync(selected).isFile()) return false;
+  } catch {
+    if (!pathname.startsWith('/configurator') || extname(file)) return false;
+    selected = join(nativeRoot, 'index.html');
+  }
+  const info = statSync(selected);
+  res.writeHead(200, {
+    'Content-Type': contentTypes.get(extname(selected)) || 'application/octet-stream',
+    'Content-Length': info.size,
+    'Cache-Control': selected.endsWith('index.html') ? 'no-cache' : 'public, max-age=86400',
+    'X-Content-Type-Options': 'nosniff'
+  });
+  if (req.method === 'HEAD') res.end();
+  else createReadStream(selected).pipe(res);
+  return true;
+}
 const json = (res, code, obj) => {
   res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' });
   res.end(JSON.stringify(obj));
@@ -107,6 +143,10 @@ export function createServer({ coreUrl = 'http://core-simulator:8080', rtspUrl =
   const server = http.createServer(async (req, res) => {
     const url = new URL(req.url, 'http://localhost');
     const path = url.pathname;
+    if (nativeExists && path === '/configurator') {
+      res.writeHead(302, { Location: '/configurator/' }); res.end(); return;
+    }
+    if (sendNativeFile(req, res, path)) return;
     // Only the host's Web Configurator HTML gets the extension. REST, WS,
     // images, icons, authentication endpoints etc. are forwarded unchanged.
     if (path === '/rtsp-addon/editor.js' || path === '/rtsp-addon/editor.css') {
