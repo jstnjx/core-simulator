@@ -24,12 +24,21 @@ test('stream metadata is saved in RTSP sidecar, not serialized to Core', () => {
   assert.match(adapter, /withVideoStreams/);
   assert.match(adapter, /Cannot copy Video Stream credentials/);
 });
-test('native preview uses the authenticated same-origin media API', () => {
+test('Video Stream grid shows a static placeholder using native Media Player classes', () => {
   const component = source('native/ComponentButtonVideo.vue');
-  assert.match(component, /rtsp-addon\/media\/mjpeg/);
-  assert.match(component, /getComponentClasses/);
-  assert.doesNotMatch(component, /view_token=|RTSP_WIDGET_PASSWORD/);
+  assert.match(component, /getComponentClasses\("media-player", props\.settings\)/);
+  assert.match(component, /ui-component--media-player--compact/);
+  assert.match(component, /ui-component--media-player__cover/);
+  assert.match(component, /ui-component--media-player__main/);
+  assert.match(component, /ui-component--media-player__title/);
+  assert.match(component, /ui-component--media-player__source/);
+  assert.match(component, /ui-component--media-player__progress/);
+  assert.match(component, /fa-video/);
+  assert.match(component, /useElementSize/);
+  assert.doesNotMatch(component, /<img\b|<video\b|<iframe\b|\/mjpeg\/|\/hls\/|\/snapshot\//);
+  assert.doesNotMatch(component, /fetch\(|view_token=|RTSP_WIDGET_PASSWORD/);
 });
+
 test('Docker builds the GPL frontend from the published 2.3.3 Vue sources', () => {
   const dockerfile = source('Dockerfile');
   assert.match(dockerfile, /WEB_CONFIGURATOR_SOURCE_URL/);

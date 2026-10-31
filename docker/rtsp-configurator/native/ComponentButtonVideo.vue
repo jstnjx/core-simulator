@@ -1,23 +1,50 @@
-<!-- SPDX-License-Identifier: GPL-3.0-only. Native Configurator widget renderer. -->
+<!-- SPDX-License-Identifier: GPL-3.0-only. Static Configurator placeholder for the Video Stream widget. -->
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, useTemplateRef } from "vue";
+import { useElementSize } from "@vueuse/core";
 import type { ActivityUserInterfaceItem } from "@/types/activity";
 import { getComponentClasses } from "@/composables/components";
+
 const props = defineProps<{ settings: ActivityUserInterfaceItem }>();
-const id = computed(() => props.settings.video_stream?.id || "");
-const src = computed(() => id.value ? "/rtsp-addon/media/mjpeg/" + encodeURIComponent(id.value) : "");
+
+// Match the built-in Media Player widget's responsive layout and classes.
+// The Configurator is an editor, not a viewer: no RTSP/MJPEG request is made.
+const videoStream = useTemplateRef<HTMLDivElement>("videoStream");
+const { width, height } = useElementSize(videoStream);
+
+const mainClasses = computed(() => {
+  const classes = getComponentClasses("media-player", props.settings).join(" ");
+  return width.value > 0 && height.value / width.value < 0.6
+    ? "ui-component--media-player--compact " + classes
+    : classes;
+});
+
+const displayName = computed(() =>
+  props.settings.video_stream?.name?.trim() || "Video Stream",
+);
 </script>
+
 <template>
-  <div :class="getComponentClasses('video-stream', settings)" class="video-stream-native">
-    <img v-if="src" :src="src" alt="Live video stream" draggable="false"
-      style="width:100%;height:100%;object-fit:cover;display:block;background:#06080b" />
-    <div v-else class="video-stream-native__empty">
+  <div ref="videoStream" :class="mainClasses">
+    <div class="ui-component--media-player__cover">
       <i class="fa-regular fa-video"></i>
-      <span>{{ settings.video_stream?.name || 'Video Stream' }}</span>
+    </div>
+    <div class="ui-component--media-player__main">
+      <h1 class="ui-component--media-player__title">
+        {{ displayName }}
+      </h1>
+      <p class="ui-component--media-player__source">
+        Video Stream
+      </p>
+      <div class="ui-component--media-player__progress">
+        <div class="ui-component--media-player__progress__line">
+          <span></span>
+        </div>
+        <div class="ui-component--media-player__progress__time">
+          <span class="ui-component--media-player__progress__time__value">Preview</span>
+          <span class="ui-component--media-player__progress__time__value">RTSP</span>
+        </div>
+      </div>
     </div>
   </div>
 </template>
-<style scoped>
-.video-stream-native{width:100%;height:100%;min-height:0;overflow:hidden;border-radius:inherit;background:#06080b}
-.video-stream-native__empty{width:100%;height:100%;display:flex;align-items:center;justify-content:center;gap:8px;color:inherit}
-</style>
